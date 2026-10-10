@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }}</title>
+<meta name="description" content="{{ subtitle }}">
+<style>
+:root {
+  --ink: #202124; --muted: #5f6368; --rule: #dadce0; --band: #f8f9fa;
+  --waste: #b3261e; --markdown: #c77700; --sales: #1a5f7a;
+  --positive: #2e7d32; --negative: #b3261e;
+  --measure: 62rem;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: #fff; color: var(--ink);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+}
+.wrap { max-width: var(--measure); margin: 0 auto; padding: 2.5rem 1.25rem 5rem; }
+header.report { border-bottom: 3px solid var(--ink); padding-bottom: 1.25rem; margin-bottom: 2rem; }
+header.report h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 .4rem; letter-spacing: -.015em; }
+header.report .subtitle { color: var(--muted); margin: 0; font-size: 1rem; }
+header.report .stamp { color: var(--muted); font-size: .82rem; margin-top: .8rem; font-variant-numeric: tabular-nums; }
+h2 { font-size: 1.3rem; margin: 3rem 0 .4rem; letter-spacing: -.01em; }
+h3 { font-size: 1.05rem; margin: 2rem 0 .4rem; }
+p { margin: .6rem 0; }
+p.lede { font-size: 1.06rem; color: #3c4043; }
+.muted { color: var(--muted); }
+.note { background: var(--band); border-left: 3px solid var(--rule); padding: .85rem 1rem; margin: 1rem 0; font-size: .93rem; }
+.note--alert { background: #fdecea; border-left-color: var(--waste); }
+.note--caution { background: #fff8e1; border-left-color: var(--markdown); }
+ul { padding-left: 1.2rem; }
+li { margin: .3rem 0; }
+dl.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); margin: 1.5rem 0; padding: 0; }
+.stat { background: #fff; padding: 1rem 1.1rem; }
+.stat dt { font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.stat dd { font-size: 1.55rem; margin: .3rem 0 0; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.stat__note { font-size: .78rem; color: var(--muted); margin: .35rem 0 0; }
+.stat--waste dd { color: var(--waste); }
+.stat--markdown dd { color: var(--markdown); }
+.stat--negative dd { color: var(--negative); }
+.stat--positive dd { color: var(--positive); }
+table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.5rem; font-size: .88rem; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: .45rem .5rem; border-bottom: 1px solid var(--rule); }
+th:first-child, td:first-child { text-align: left; }
+thead th { border-bottom: 2px solid var(--ink); font-size: .76rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; }
+tbody tr:hover { background: var(--band); }
+figure { margin: 1.5rem 0; }
+figure svg { display: block; }
+figcaption { font-size: .82rem; color: var(--muted); margin-top: .5rem; }
+footer.report { margin-top: 4rem; padding-top: 1.25rem; border-top: 1px solid var(--rule); font-size: .82rem; color: var(--muted); }
+code { background: var(--band); padding: .1rem .3rem; border-radius: 3px; font-size: .85em; }
+@media print { .note { break-inside: avoid; } figure { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="report">
+  <h1>{{ title }}</h1>
+  <p class="subtitle">{{ subtitle }}</p>
+  <p class="stamp">Reporting date {{ as_of }} (the last closed trading day is {{ as_of_minus_one }}).
+  Generated from a DuckDB warehouse by <code>make report</code>; no figure on this page is entered by hand.</p>
+</header>
+
+<h2>What this is</h2>
+<p class="lede">A fresh department loses money two ways, and they are not the same problem.
+It <strong>gives margin away</strong> to sell stock before it expires, and it <strong>throws stock away</strong>
+because it bought stock it could not sell. This report measures both over {{ trading_days }} trading days across
+{{ stores }} stores and {{ items }} items, and asks a single question: given what we now know about demand,
+how much should each store order, and when should it cut the price?</p>
+
+<p>The answer is not "order less". On this estate waste is a small fraction of sales while margin is a large
+one, so a plan that simply orders down destroys more margin than it saves in waste. The gain is in <em>timing</em>
+and in the specific lines whose cover pattern exceeds the life of the product. Those are named below.</p>
+
+<h2>The headline numbers</h2>
+<dl class="stats">
+  {{ stat_sales | safe }}
+  {{ stat_waste | safe }}
+  {{ stat_markdown | safe }}
+  {{ stat_shrink | safe }}
+</dl>
+{{ shrink_note | safe }}
+
+<h2>Where the loss is</h2>
+<p>Two different costs, and which one dominates changes completely by department. This is why a single
+estate-wide loss figure is not actionable: produce and seafood lose to the bin, bakery and dairy lose to the
+price gun.</p>
+{{ chart_departments | safe }}
+{{ table_departments | safe }}
+
+<h2>The lines that cost the most</h2>
+<p>Ranked by recorded waste cost, with the reason the model attributes to each. A line is ordered too much,
+arrives with too little life left, or simply does not sell at that store — three different conversations with
+three different people.</p>
+{{ table_league | safe }}
+
+<h2>Does markdown pay for itself?</h2>
+<p>A markdown is a purchase of time: margin spent to convert stock that would have been binned into revenue.
+Whether it pays depends on the line, the depth and the hour. The gap between what was printed and what the
+till honoured is priced separately, because it is a compliance problem rather than a pricing one.</p>
+{{ table_markdown | safe }}
+
+<h2>How much should we order?</h2>
+<p class="lede">The trade-off the whole exercise turns on: order more and you sell more but throw more away;
+order less and you waste less but run out. Below, that trade-off is priced for this estate.</p>
+{{ chart_frontier | safe }}
+<p class="muted">Read the optimum as the order policy that minimises the <em>sum</em> of the two costs. It sits
+low here — below the halfway point — because a wasted unit costs its <strong>cost price</strong> while a unit
+not stocked costs its <strong>margin</strong>, and on this estate margin is roughly {{ margin_ratio }}× the cost.</p>
+{{ frontier_note | safe }}
+
+<h2>The dollar impact, and where it disagrees with itself</h2>
+{{ impact_table | safe }}
+{{ reconciliation_note | safe }}
+
+<h2>How good is the forecast this rests on?</h2>
+<p>Every recommendation above consumes a demand forecast, so the forecast is scored on rolling origins rather
+than on a single holdout. Two metrics matter: how close the point forecast is (WAPE), and whether the quantiles
+are calibrated — because the ordering decision uses a quantile, not a mean.</p>
+{{ table_forecast | safe }}
+{{ chart_calibration | safe }}
+{{ calibration_note | safe }}
+
+<h2>What the data could not tell us</h2>
+<p>Every defect the pipeline knows about is priced rather than hidden, because an unmeasured data problem
+becomes an unexplained variance someone chases later. Only stores with something to report appear here.</p>
+{{ table_quality | safe }}
+
+<h2>Method, and what would change the answer</h2>
+<ul>
+  <li><strong>Recorded waste is a floor, not the loss.</strong> Disposals are scanned on a handheld, and on a
+  busy evening roughly a fifth are never scanned. The size of that gap is measured, and it is why the warehouse
+  reconciles a stock ledger against physical counts instead of trusting the scan file.</li>
+  <li><strong>Unrecorded shrink is a bound, not a measurement.</strong> It is the residue no record explains,
+  and it absorbs unscanned loss, counting error and booking mistakes together. Count error dominates on this
+  estate, which is why the figure carried into the headline is weighted by a confidence score.</li>
+  <li><strong>The weather input is better than reality.</strong> The simulation gives the model perfect
+  knowledge of future temperature; a real deployment has a forecast, and a forecast has error. This
+  flatters the backtest, and it is the single largest reason to expect worse performance in production
+  than the numbers on this page.</li>
+  <li><strong>Markdown response is estimated from non-random history.</strong> Stores mark down the stock they
+  expect to struggle, so the measured response under-states the true one and the optimiser under-marks-down
+  slightly. Correcting that needs an experiment, not a better estimator.</li>
+  <li><strong>The baseline is reconstructed, not observed.</strong> It models the order-up-to habit the stores
+  run, rebuilt from delivery history. A real trial would use the actual orders placed.</li>
+  <li><strong>This is a simulated estate.</strong> The sources, the defects and the economics are modelled. The
+  pipeline, the reconciliation and the decision logic are not — they are what the report is demonstrating.</li>
+</ul>
+
+<footer class="report">
+  <p>{{ footer }}</p>
+  <p>Prices are GST-inclusive and fresh food is GST-free, so no GST appears in any loss figure.
+  Waste and shrink are valued at cost; markdown erosion at the margin given away. The three are never summed
+  into one number, because they have three different fixes.</p>
+</footer>
+
+</div>
+</body>
+</html>
