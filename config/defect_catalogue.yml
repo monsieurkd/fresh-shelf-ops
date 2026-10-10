@@ -1,0 +1,199 @@
+# ---------------------------------------------------------------------------
+# Defect catalogue — the messiness the source systems really produce.
+#
+# This file is the single source of truth for BOTH sides of the seam:
+#   * `fresh_shelf.landing.writer` reads it to decide what to inject into the
+#     landing zone, and
+#   * `fresh_shelf.ingest` is the contract that says how each one is detected,
+#     handled and recorded.
+#
+# Every code has at least one pytest that injects it alone and asserts the raw
+# layer recovers the truth (data/truth/*.parquet). The run manifest reports how
+# many rows each defect quarantined, so a surprise is visible rather than silent.
+# ---------------------------------------------------------------------------
+defects:
+  - code: D01
+    name: duplicate_file_redelivery
+    source: pos_sales
+    description: >-
+      The POS integration re-sends a store-day extract after a gateway timeout.
+      Identical bytes, different filename (`..._retry.csv`).
+    injection: { scope: estate, probability_per_file: 0.02 }
+    handling: >-
+      Landing is content-addressed (sha256). A second file with the same
+      checksum is recorded in `ingest_files` as status 'duplicate' and never
+      loaded twice — the raw table keeps exactly one copy of each store-day.
+    test: tests/test_ingest_defects.py::test_d01_duplicate_redelivery_is_not_double_counted
+
+  - code: D02
+    name: late_arriving_file
+    source: pos_sales
+    description: >-
+      Two of the estate's stores trade on a 3G till link; their extract lands
+      the morning after next instead of the next morning.
+    injection: { scope: stores, stores: [S07, S08], lag_days: 1, probability_per_file: 0.25 }
+    handling: >-
+      Landing date and business date are separate columns. Ingest loads every
+      file present, keyed by business date, so a file that lands late lands in
+      the same partition as the rest of that day. `ingest_files.lag_days`
+      records the lateness and a freshness test fails if a business day is
+      still missing after the as-of date.
+    test: tests/test_ingest_defects.py::test_d02_late_file_lands_in_its_business_partition
+
+  - code: D03
+    name: missing_store_day
+    source: pos_sales
+    description: >-
+      A store's link is down for a whole day and the extract is never re-sent
+      (the till rolls its own totals forward). Rare, and it is the case that
+      makes "sales" quietly under-count.
+    injection: { scope: estate, days: 2, stores_per_event: 1 }
+    handling: >-
+      Not recoverable from source — the pipeline refuses to invent it. The gap
+      is surfaced by the `pos_store_day_coverage` test (a store-day present in
+      the store calendar but absent from POS) and by `mart_data_quality`, and
+      the affected store-days are excluded from sell-through KPIs rather than
+      being read as zero sales.
+    test: tests/test_ingest_defects.py::test_d03_missing_store_day_is_reported_not_invented
+
+  - code: D04
+    name: units_as_text_leading_zeros
+    source: pos_sales
+    description: >-
+      A 2019-era till firmware writes `units` as text with a decimal comma in
+      one store's locale ('0,5' kg). Kept as text by the upstream extract.
+    injection: { scope: stores, stores: [S03], fields: [units], style: decimal_comma_text }
+    handling: >-
+      Staging casts through a `try_cast` expression that normalises the
+      locale decimal comma, and any value that still fails is quarantined with
+      its raw text preserved (`raw_quarantine`) instead of defaulting to zero.
+    test: tests/test_ingest_defects.py::test_d04_locale_text_units_are_normalised
+
+  - code: D05
+    name: cents_not_dollars
+    source: pos_sales
+    description: >-
+      One store still exports money columns in integer cents. Same column name,
+      different unit — the classic silent 100x error.
+    injection: { scope: stores, stores: [S05], money_in_cents: true, from_offset_days: 0, to_offset_days: 61 }
+    handling: >-
+      A per-file `money_unit` header marker plus a plausibility bound
+      (a fresh line cannot average more than $250 a unit): the loader
+      normalises to dollars before it writes raw, and quarantines anything that
+      fails the bound rather than scaling blind.
+    test: tests/test_ingest_defects.py::test_d05_cents_file_is_normalised_or_quarantined
+
+  - code: D06
+    name: utc_timestamps_for_loss_scans
+    source: waste_events
+    description: >-
+      Handheld loss scanners write UTC; every other source writes local
+      Adelaide time. A 7pm disposal is logged as 09:30 the same day in winter
+      and 08:30 in summer — and around 14:30 UTC it crosses midnight, moving
+      the event to the wrong trading day.
+    injection: { scope: estate, tz: UTC }
+    handling: >-
+      Staging converts to Australia/Adelaide and derives `business_date` from
+      the local timestamp, never from the date part of the raw string. A
+      boundary test asserts the 00:30 ACDT / 23:30 ACST events land on the
+      right Adelaide day.
+    test: tests/test_ingest_defects.py::test_d06_utc_scans_land_on_the_right_adelaide_day
+
+  - code: D07
+    name: unscanned_disposals
+    source: waste_events
+    description: >-
+      The real one. Staff scan a disposal when the handheld is to hand; on a
+      busy Sunday evening roughly a fifth of disposals are never scanned.
+      Compliance also varies by store.
+    injection: { scope: estate, base_compliance: 0.82, weekend_penalty: 0.06, per_store_spread: 0.12 }
+    handling: >-
+      Not a file defect: it is the reason recorded waste is a floor, not the
+      truth. `int_stock_ledger` reconciles the ledger (receipts - sales -
+      scanned disposals) against physical counts and publishes the residue as
+      unrecorded shrink at cost — with the assumption and its limits stated in
+      docs/DECISIONS.md (AD-07).
+    test: tests/test_warehouse.py::test_unrecorded_shrink_bridges_the_ledger_residue
+
+  - code: D08
+    name: reason_code_drift
+    source: waste_events
+    description: >-
+      Reason codes drift by store firmware ('EXP', 'EXPIRED', 'expired ',
+      'DAMAGED', 'QUALITY', 'OTHER', numeric codes '1'/'4'). Free text in one
+      store's app version.
+    injection: { scope: estate, variants: [case, whitespace, numeric, legacy_alias] }
+    handling: >-
+      `stg_waste_events` maps a seeded code table (`waste_reason_map`) and
+      any unmapped code is kept as raw code with reason_group 'unmapped' so a
+      new firmware code shows up as an alert instead of silently becoming
+      'other'.
+    test: tests/test_warehouse.py::test_reason_codes_roll_up_to_groups
+
+  - code: D09
+    name: unknown_sku_code
+    source: [pos_sales, waste_events, goods_received]
+    description: >-
+      Seasonal lines and late-filled planogram changes appear in till data
+      before the item master is updated (and a few retired lines never get
+      removed from the till).
+    injection: { scope: estate, unknown_sku_rows: 0.004 }
+    handling: >-
+      Item lookups are left joins and unmapped SKUs are routed into
+      `raw_unmapped_sku` for review; the quality mart reports their dollar
+      weight so an item-master gap is quantified rather than dropped.
+    test: tests/test_warehouse.py::test_unmapped_skus_are_quantified_not_dropped
+
+  - code: D10
+    name: negative_and_void_lines
+    source: pos_sales
+    description: >-
+      Voided/refunded lines arrive as negative units in the same extract.
+    injection: { scope: estate, probability_per_store_day: 0.08 }
+    handling: >-
+      Kept, not dropped: negatives are netted inside the store-day-SKU grain
+      and a singular test asserts netted units are never negative (a negative
+      net means the void logic is wrong, not the data).
+    test: tests/test_warehouse.py::test_netted_units_never_negative
+
+  - code: D11
+    name: count_rounding_and_counting_error
+    source: stock_counts
+    description: >-
+      Cycle counts are eyeballed: +/-3% on units, and pack items counted in
+      packs while the ledger is in eaches.
+    injection: { scope: estate, error_sd: 0.03, pack_confusion_probability: 0.05 }
+    handling: >-
+      Units are normalised to eaches via `items.pack_size`; the reconciliation
+      model tracks a rolling count-error per store-item so a systematic count
+      problem is separated from loss. Uncertainty is carried into the shrink
+      estimate instead of being presented as exact.
+    test: tests/test_warehouse.py::test_count_normalisation_removes_pack_error
+
+  - code: D12
+    name: short_and_substituted_deliveries
+    source: goods_received
+    description: >-
+      Fresh supply is short on a hot week and substituted (6x punnet instead of
+      4x) with a different cost and a shorter life at delivery.
+    injection: { scope: estate, short_rate: 0.07, substitution_rate: 0.03 }
+    handling: >-
+      Quantity is kept as three columns (ordered / received / rejected) and
+      substitutions bring their own cost and best-before, so shelf life at
+      delivery is read per delivery, not per item.
+    test: tests/test_warehouse.py::test_delivery_fill_rate_and_life_at_delivery
+
+  - code: D13
+    name: markdown_printed_but_not_sold_at_price
+    source: markdown_events
+    description: >-
+      The ticket prints, the sticker goes on, and the till rings it at full
+      price (or the ticket prints and nobody sticks it). Markdown revenue then
+      disagrees with markdown events.
+    injection: { scope: estate, unhonoured_rate: 0.09 }
+    handling: >-
+      Markdown *erosion* is computed from realised sales (POS discount
+      amount), not from printed tickets; the printed-ticket file is used only
+      to attribute depth and timing. `mart_markdown_effectiveness` reports the
+      gap between printed and honoured so the compliance problem is priced.
+    test: tests/test_warehouse.py::test_markdown_erosion_uses_realised_discount

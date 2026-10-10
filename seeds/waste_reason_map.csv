@@ -1,0 +1,37 @@
+raw_code,reason_group,loss_class
+EXP,Expired,waste
+EXPIRED,Expired,waste
+EXPIRY,Expired,waste
+BEST BEFORE,Expired,waste
+PAST BEST BEFORE,Expired,waste
+1,Expired,waste
+DAMAGED,Damaged,waste
+DAMAGE,Damaged,waste
+BRUISED,Damaged,waste
+CRUSHED,Damaged,waste
+2,Damaged,waste
+QUALITY,Quality,waste
+QUAL,Quality,waste
+POOR QUALITY,Quality,waste
+MOULD,Quality,waste
+MOULDY,Quality,waste
+ROT,Quality,waste
+PACKING FAULT,Quality,waste
+3,Quality,waste
+TEMP,Temperature,waste
+TEMPERATURE,Temperature,waste
+COLD CHAIN,Temperature,waste
+4,Temperature,waste
+SPOIL,Spoilage,waste
+SPOILAGE,Spoilage,waste
+SOFT,Spoilage,waste
+TRIM,Preparation,preparation
+PREP,Preparation,preparation
+TRIMMINGS,Preparation,preparation
+BUTCHER TRIM,Preparation,preparation
+5,Preparation,preparation
+THEFT,Shrink - theft,shrink
+SHRINK,Shrink - unknown,shrink
+OTHER,Other,unknown
+UNKNOWN,Other,unknown
+9,Other,unknown

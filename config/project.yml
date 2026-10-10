@@ -1,0 +1,79 @@
+# ---------------------------------------------------------------------------
+# Project configuration — the single place the pipeline reads its clock,
+# its paths and its economic assumptions from.
+#
+# The clock is deliberately pinned: this project is a *reproducible* snapshot of
+# a supermarket group's fresh departments as at 2026-09-10. Data ends the day
+# before the as-of date, so nothing in the warehouse is "today's partial day".
+# ---------------------------------------------------------------------------
+project:
+  name: fresh-shelf-ops
+  trading_name: Southern Fresh Markets (simulated)
+  timezone: Australia/Adelaide
+  currency: AUD
+
+clock:
+  as_of_date: 2026-09-10 # the project's "today"; the last closed trading day is as_of_date - 1
+  history_days: 364 # one trading year of history ending as_of_date - 1
+  # Source drops are stamped with the date they land (always <= as_of_date).
+
+paths:
+  landing_dir: data/landing
+  warehouse_file: data/warehouse/fresh_shelf.duckdb
+  truth_dir: data/truth
+  artifacts_dir: data/artifacts
+  build_dir: build
+
+world:
+  seed: 20260910 # deterministic: same seed -> byte-identical source files
+  # `stores: all` uses the full estate defined in fresh_shelf.world.master.
+  # A short list (or --stores 2) produces a smaller world for tests and CI.
+  stores: all
+  # Per-store "how good is this store at fresh?" multiplier on markdown
+  # discipline and waste-scan compliance; 1.0 = estate average.
+  raw_history_days_cap: 364
+
+economics:
+  gst_rate: 0.10 # AU GST; fresh food is GST-free, but markdowns reduce *margin*, not GST
+  # Fresh loss is reported three ways, because they are three different problems:
+  #   markdown erosion  = margin given away to sell something before it expires
+  #   recorded waste    = scanned disposals, valued at cost (ex-GST)
+  #   unrecorded shrink = ledger residue that no disposal scan explains
+  shrinkage_basis: cost # waste + shrink valued at cost of goods (ex-GST)
+  markdown_basis: margin # markdown erosion valued at gross margin (ex-GST)
+
+forecast:
+  horizon_days: 14
+  quantiles: [0.5, 0.7, 0.8, 0.9, 0.95]
+  backtest_folds: 6
+  min_train_days: 84
+  # Only items whose remaining life is short enough to be a waste risk are in
+  # scope for the optimiser. Longer-life items are dropped to the warehouse
+  # benchmarks but not forecast.
+  optimise_shelf_life_max_days: 21
+  models: ["seasonal_naive", "dow_mean", "hgb_quantile"]
+
+optimise:
+  # Newsvendor safety: order to the quantile of the demand distribution implied
+  # by the cost of being short vs the cost of throwing the unit away.
+  service_level_floor: 0.55
+  service_level_ceiling: 0.97
+  # Markdown ladder: prices are printed at these depths, cheapest last.
+  markdown_depths: [0.10, 0.20, 0.30, 0.40, 0.50, 0.70]
+  # Local (Australian) times a markdown pass can be printed.
+  markdown_passes: ["09:00", "14:00", "18:00"]
+  # Discount elasticity prior (units lifted per 1% of price cut) used when a
+  # SKU has too little markdown history to estimate its own.
+  elasticity_prior: 0.020
+  elasticity_bounds: [0.002, 0.090]
+  min_history_for_elasticity: 40
+  # Waste-avoided must be worth at least this multiple of the margin it risks.
+  frontier_min_benefit_ratio: 1.15
+
+report:
+  top_n_items: 15
+  title: "Fresh loss & markdown performance — Southern Fresh Markets"
+  # A prefix kept for backwards reference only. The report derives its own
+  # subtitle from the data (stores, items, trading days, date range), because a
+  # hardcoded scope claim is wrong the moment the world is rescaled.
+  subtitle: ""

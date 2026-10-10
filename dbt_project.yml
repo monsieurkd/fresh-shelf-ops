@@ -1,0 +1,87 @@
+name: fresh_shelf_ops
+version: "1.0.0"
+config-version: 2
+
+# The warehouse is a single DuckDB file; dbt is the transform DAG.
+# Layering: staging (one model per landed feed, typed + de-duplicated)
+#        -> intermediate (the stock ledger, reconciliation, FEFO depletion)
+#        -> marts (star schema + reporting marts the optimiser and report read)
+#        -> analytics (thin models over what the Python decision layer wrote back).
+profile: fresh_shelf
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["dbt_tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+target-path: target
+clean-targets: ["target", "dbt_packages", "logs"]
+
+require-dbt-version: [">=1.9.0", "<2.0.0"]
+
+vars:
+  # --- the clock -------------------------------------------------------------
+  # Defaulted here so a bare `dbt build` works; `fresh_shelf.cli` exports
+  # FRESH_SHELF_AS_OF from config/project.yml before it shells out to dbt, so
+  # there is one opinion about what "today" means. The singular test
+  # `assert_clock_matches_latest_trading_day` fails if these ever disagree with
+  # the data on disk, which is how a stalled feed gets noticed.
+  as_of_date: "{{ env_var('FRESH_SHELF_AS_OF', '2026-09-10') }}"
+  timezone: "Australia/Adelaide"
+  currency: "AUD"
+
+  # --- loss economics -------------------------------------------------------
+  # Waste and unrecorded shrink are valued at cost of goods (ex-GST); markdown
+  # erosion is valued at the gross margin it gives away. Fresh food is
+  # GST-free, so GST never appears in a loss number — see docs/DECISIONS.md.
+  gst_rate: 0.10
+  markdown_depths: [0.10, 0.20, 0.30, 0.40, 0.50, 0.70]
+
+  # --- scope ----------------------------------------------------------------
+  # Short-life is where waste lives. Longer-life lines stay in the warehouse
+  # benchmarks but are out of scope for the optimiser.
+  short_life_max_days: 21
+  # "Today" in the ledger: the last closed trading day.
+  last_trading_day: "{{ modules.datetime.datetime.strptime(env_var('FRESH_SHELF_AS_OF', '2026-09-10'), '%Y-%m-%d').date() - modules.datetime.timedelta(days=1) }}"
+
+models:
+  fresh_shelf_ops:
+    staging:
+      +schema: staging
+      +materialized: view
+    intermediate:
+      +schema: intermediate
+      +materialized: table
+    marts:
+      core:
+        +schema: marts
+        +materialized: table
+      reporting:
+        +schema: reporting
+        +materialized: table
+    analytics:
+      +schema: analytics
+      +materialized: view
+
+seeds:
+  fresh_shelf_ops:
+    +schema: seeds
+    # Reference data that is curated, not sourced: the SA trading calendar and
+    # the loss-scan reason map. The world generator reads the same files, so
+    # simulated demand and reported holidays cannot drift apart.
+    au_sa_public_holidays:
+      +column_types:
+        holiday_date: date
+    au_sa_school_holidays:
+      +column_types:
+        start_date: date
+        end_date: date
+    waste_reason_map:
+      +column_types:
+        raw_code: varchar
+
+tests:
+  fresh_shelf_ops:
+    +severity: error
+    +store_failures: false
