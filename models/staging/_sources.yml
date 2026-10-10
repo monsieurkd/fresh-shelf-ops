@@ -1,0 +1,89 @@
+version: 2
+
+# ---------------------------------------------------------------------------
+# Sources: the `raw` schema as the Python ingest layer leaves it.
+#
+# These are *not* the files in the landing zone. By the time dbt runs, the
+# loader has already made every column trustworthy — numbers are numbers, money
+# is dollars, timestamps are timestamps, and the business date came from the
+# file's contents rather than its folder (see docs/ARCHITECTURE.md).
+#
+# The freshness blocks are load-bearing. `warn_after` is the point at which a
+# feed's absence stops being normal jitter and starts being a problem worth
+# looking at; `error_after` is where the daily run should fail loudly rather
+# than quietly reporting a store that sold nothing.
+# ---------------------------------------------------------------------------
+sources:
+  - name: raw
+    schema: raw
+    description: "Landed source feeds, typed and de-duplicated by the ingest layer."
+    # Freshness is measured against the project clock, not wall time, because
+    # the whole warehouse is a reproducible snapshot of 2026-09-09.
+    loaded_at_field: _ingested_at
+    tables:
+      - name: pos_sales
+        description: >
+          One row per store, business day and SKU sold. Voided and refunded
+          lines arrive as negatives in this same table and are netted per
+          store-day-SKU in `stg_pos_sales`.
+        columns:
+          - name: business_date
+            description: "The trading day the sale belongs to, from the file's contents."
+          - name: store_code
+          - name: sku
+          - name: units
+            description: "Netted here; negative rows are voids, not errors."
+          - name: gross_sales
+            description: "Dollars, ex-GST, before the discount below."
+          - name: discount_amount
+            description: "Realised markdown given away at the till (not what was printed)."
+          - name: money_unit_as_filed
+            description: "'dollars' or 'cents' — what the source file claimed (D05)."
+      - name: goods_received
+        description: "Supplier deliveries (the GRN). One row per delivery line."
+      - name: waste_events
+        description: >
+          Losses that staff scanned on a handheld. The scanned subset of the
+          disposals that actually happened (D07) — a floor on true loss.
+        columns:
+          - name: event_ts_utc
+            description: "As the device filed it, in UTC."
+          - name: event_ts_local
+            description: "Converted to Australia/Adelaide at load time."
+          - name: business_date
+            description: "Derived from the LOCAL timestamp, never from the UTC date (D06)."
+          - name: reason_code_raw
+            description: "Verbatim firmware code; mapped to a group in staging (D08)."
+      - name: stock_counts
+        description: "Physical counts. The anchor the ledger reconciliation closes against."
+      - name: markdown_events
+        description: >
+          Printed markdown tickets. Used for depth and timing ONLY — erosion is
+          measured from realised POS discount, because a printed ticket is not
+          always honoured at the till (D13).
+      - name: promotions
+        description: "Catalogue promotions, published ahead of the trading data."
+      - name: item_master
+        description: "The item master. Lags the tills, so some sold SKUs are absent (D09)."
+      - name: store_master
+        description: "The store estate."
+      - name: supplier_master
+        description: "The supply base, including delivery cadence and reliability."
+      - name: trading_calendar
+        description: >
+          Which days each store was open. The anchor for coverage checks (D03):
+          the cross product of store and trading day is what a complete POS feed
+          should contain.
+      - name: weather
+        description: "Daily observations per store, including the as-of day."
+
+  - name: seeds
+    schema: seeds
+    description: "Curated reference data committed to the repo rather than sourced."
+    tables:
+      - name: au_sa_public_holidays
+        description: "SA public holidays with the closure flag the trading calendar obeys."
+      - name: au_sa_school_holidays
+        description: "SA school term breaks, a demand driver in regional stores."
+      - name: waste_reason_map
+        description: "Raw loss-scan codes to a reason group and a loss class."

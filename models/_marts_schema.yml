@@ -1,0 +1,179 @@
+version: 2
+
+# ---------------------------------------------------------------------------
+# Schema tests on the marts.
+#
+# The singular tests in dbt_tests/ each prove a *claim* about a defect. These
+# prove the boring structural things those claims rest on: that a key is unique
+# where it should be, that a required value is never null, and that enumerated
+# columns only contain the values the models document. Both kinds are needed —
+# a reconciliation can be internally consistent and still be keyed wrongly.
+# ---------------------------------------------------------------------------
+models:
+  - name: fct_store_item_day
+    description: "One row per store, item and trading day."
+    columns:
+      - name: store_key
+        tests:
+          - not_null
+      - name: item_key
+        tests:
+          - not_null
+      - name: date_key
+        tests:
+          - not_null
+      # The grain. A duplicate here would double every number in the report.
+      - name: store_code
+        tests:
+          - not_null
+      - name: sku
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_item')
+              field: sku
+      - name: business_date
+        tests:
+          - not_null
+      - name: department_code
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["P", "B", "D", "Y", "S"]
+      - name: units_sold
+        tests:
+          - not_null
+      - name: shrink_confidence
+        tests:
+          # Confidence is only present where there is a residue to weight, and
+          # where present it must be a probability.
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+              where: "shrink_confidence is not null"
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: ["store_code", "sku", "business_date"]
+
+  - name: dim_item
+    description: "The fresh range."
+    columns:
+      - name: sku
+        tests:
+          - unique
+          - not_null
+      - name: shelf_life_days
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
+      - name: shelf_life_band
+        tests:
+          - accepted_values:
+              values: ["Same day", "2-3 days", "4-7 days", "1-3 weeks", "3 weeks+"]
+
+  - name: dim_store
+    description: "The store estate, with operational behaviour measured from data."
+    columns:
+      - name: store_code
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_date
+    description: "The trading calendar."
+    columns:
+      - name: date_key
+        tests:
+          - unique
+          - not_null
+      - name: is_trading_day
+        tests:
+          - not_null
+
+  - name: mart_loss_performance
+    description: "Loss by store, department and month — the report's headline."
+    columns:
+      - name: store_code
+        tests:
+          - not_null
+      - name: department_code
+        tests:
+          - not_null
+      - name: month_start
+        tests:
+          - not_null
+      - name: units_received
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+
+  - name: mart_waste_league_table
+    description: "Which lines cost the most, and why."
+    columns:
+      - name: sku
+        tests:
+          - not_null
+      - name: waste_pressure_reason
+        tests:
+          - accepted_values:
+              values:
+                - "Ordered too much"
+                - "Short life at delivery"
+                - "Slow seller"
+                - "Marked down too deep"
+                - "Within tolerance"
+      - name: recorded_waste_cost
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+
+  - name: mart_markdown_effectiveness
+    description: "What each markdown depth bought back."
+    columns:
+      - name: depth_band
+        tests:
+          - accepted_values:
+              values:
+                - "1: shallow (10%)"
+                - "2: light (20%)"
+                - "3: standard (30%)"
+                - "4: deep (40%)"
+                - "5: half price (50%)"
+                - "6: clearance (70%)"
+      - name: markdown_pct
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+
+  - name: mart_data_quality
+    description: "What the pipeline could not trust, priced."
+    columns:
+      - name: store_code
+        tests:
+          - not_null
+      - name: has_reported_caveat
+        tests:
+          - not_null
+
+  - name: int_stock_ledger
+    description: "The daily store-item-day stock book."
+    columns:
+      - name: is_waste_risk
+        tests:
+          - not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: ["store_code", "sku", "business_date"]
+
+  - name: stg_pos_sales
+    description: "Sales netted per store-day-SKU."
+    columns:
+      - name: money_unit_as_filed
+        tests:
+          - accepted_values:
+              values: ["dollars", "cents"]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: ["store_code", "sku", "business_date"]
