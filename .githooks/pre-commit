@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# The fast tier: cheap checks that must never reach CI red.
+#
+# Deliberately only the two static guards. `make test-unit` takes seconds but
+# you are about to run it yourself, and the slow tier generates a world and
+# belongs in CI. A hook that takes a minute is a hook people disable.
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+if [ -x .venv/bin/ruff ]; then
+  echo "pre-commit: ruff"
+  .venv/bin/ruff check . --quiet
+  .venv/bin/ruff format --check . --quiet
+else
+  echo "pre-commit: no .venv found, skipping lint (run 'make setup')" >&2
+fi
+
+# Generated data must never be committed: it is reproducible from `make world`
+# and one accidental `git add -A` would put hundreds of megabytes in history.
+if git diff --cached --name-only | grep -qE '^(data|build|target|dbt_packages)/'; then
+  echo "pre-commit: refusing to commit generated files under data/, build/, target/ or dbt_packages/" >&2
+  echo "            these are reproducible: run 'make world && make daily'" >&2
+  exit 1
+fi
+
+echo "pre-commit: ok"

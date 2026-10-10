@@ -26,6 +26,10 @@ import pytest
 from fresh_shelf.config import load_config
 from fresh_shelf.report import charts
 
+# The chart tests are pure functions and always run; the page tests need a built
+# warehouse, so the module is in the warehouse tier.
+pytestmark = pytest.mark.warehouse
+
 
 class _WellFormed(HTMLParser):
     """Minimal nesting checker. Not a validator — it catches the mistakes a
@@ -138,11 +142,21 @@ def test_coverage_strip_draws_the_truth_diagonal():
 # ---------------------------------------------------------------------------
 @pytest.fixture(scope="module")
 def rendered(tmp_path_factory):
-    """Render the report from the warehouse if one has been built."""
+    """Render the report from the warehouse if one has been built.
+
+    If there is no warehouse this **fails** rather than skipping. A skip reads as
+    coverage that is not there, and the whole point of these tests is to catch a
+    report that has stopped rendering its charts or stopped stating its caveats.
+    CI builds the world before running tests precisely so this cannot fire.
+    """
     cfg = load_config()
     warehouse = cfg.paths.warehouse_file
     if not warehouse.exists():
-        pytest.skip("no warehouse built; run `make world && make daily` first")
+        pytest.fail(
+            f"no warehouse at {warehouse}; these tests need one. "
+            "Run `make world && make daily` first — they deliberately do not "
+            "skip, because a skipped report test looks like passing coverage."
+        )
     import duckdb
 
     con = duckdb.connect(str(warehouse), read_only=True)
@@ -153,10 +167,12 @@ def rendered(tmp_path_factory):
                 "select table_name from information_schema.tables where table_schema = 'analytics'"
             ).fetchall()
         }
-    except Exception:
-        pytest.skip("warehouse has no analytics schema")
+    except Exception as exc:
+        pytest.fail(f"warehouse has no analytics schema: {exc}")
     if "waste_revenue_frontier" not in tables:
-        pytest.skip("optimiser has not run; run `make daily` first")
+        pytest.fail(
+            "the optimiser has not run, so there is no frontier to report on. Run `make daily`."
+        )
 
     from fresh_shelf.report.build import build_report
 

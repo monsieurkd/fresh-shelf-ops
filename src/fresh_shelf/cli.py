@@ -496,6 +496,26 @@ def status(as_of, days, stores, seed, verbose, assert_idempotent, as_json) -> No
         click.echo(f"  idempotency: {report['idempotency']}")
 
 
+@cli.command(
+    name="dbt", context_settings={"ignore_unknown_options": True, "allow_extra_args": True}
+)
+@click.argument("args", nargs=-1, type=click.UNPROCESSED)
+@common_options
+def dbt_cmd(as_of, days, stores, seed, verbose, args) -> None:
+    """Run dbt with the project's clock and warehouse exported.
+
+    Exists so the Makefile never has to remember the environment. Calling `dbt`
+    directly works right up until it does not: `profiles.yml` has a default path,
+    so a bare `dbt build` after `make ingest` will cheerfully build whichever
+    database the default names. That is how a small world produced empty staging
+    tables while every command reported success.
+    """
+    _configure_logging(verbose)
+    cfg = _cfg(as_of, days, stores, seed)
+    result = _dbt(cfg, *args, check=False)
+    raise SystemExit(result.returncode)
+
+
 def _table_exists(con, schema: str, table: str) -> bool:
     return bool(
         query_scalar(

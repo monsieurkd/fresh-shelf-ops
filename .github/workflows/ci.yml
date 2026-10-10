@@ -33,11 +33,11 @@ jobs:
           .venv/bin/ruff check .
           .venv/bin/ruff format --check .
 
-      - name: Unit + contract tests
-        run: .venv/bin/pytest -m "not slow" --tb=short
-
-      # End-to-end on a deliberately small world: the same code paths the daily
-      # run uses, in a couple of minutes, on every push.
+      # The world is built BEFORE the tests, deliberately. Five report tests
+      # need a warehouse and would otherwise skip silently, and a green run with
+      # skipped tests is worse than a red one: it reads as coverage that is not
+      # there. Building first also means the test step exercises the same
+      # artifacts the rest of the job does.
       - name: Simulate a small world
         run: make world-small
 
@@ -51,6 +51,17 @@ jobs:
         run: |
           make forecast
           make optimise
+
+      - name: Full suite on the built warehouse
+        run: .venv/bin/pytest --tb=short
+
+      # `--strict-markers` plus an explicit no-skips assertion: the fast tier is
+      # pure logic and must never skip.
+      - name: Fast tier must pass with nothing skipped
+        run: |
+          .venv/bin/pytest -m "not slow" -q --no-header -rs \
+            | tee /tmp/fast.log
+          ! grep -q "skipped" /tmp/fast.log
 
       - name: Render report
         run: make report

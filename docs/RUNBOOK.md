@@ -161,11 +161,33 @@ notice.
 
 ## CI
 
-`./scripts/check-ci-integrity.sh`-style parity is provided by `make ci`, which
-runs: lint, tests, then a **small world end to end** (2 stores, 90 days), then the
-idempotency check. A small world is enough to exercise every code path; it is not
-enough to exercise every defect, which is why the defect tests use their own
-fixture with the specific stores each defect lives in.
+`make ci` mirrors the pipeline: lint, then a **small world end to end** (2 stores,
+90 days), then the full test suite, then the idempotency check.
+
+A small world is enough to exercise every code path; it is not enough to exercise
+every defect, which is why the defect tests build their own world containing the
+specific stores each defect lives in.
+
+**The tests run *after* the world is built, deliberately.** Five report tests need
+a warehouse, and a green run with skipped tests is worse than a red one — it
+reads as coverage that is not there. The report fixture therefore *fails* rather
+than skipping when there is no warehouse, and `make test-unit` asserts that the
+fast tier skipped nothing:
+
+```bash
+make test-unit    # 44 pure-logic tests, zero skips allowed
+make test         # all 70, including world generation
+```
+
+To run the static checks only (what the pre-commit hook does):
+
+```bash
+git config core.hooksPath .githooks    # opt in once
+```
+
+The hook runs ruff and refuses to commit generated files under `data/`, `build/`,
+`target/` or `dbt_packages/` — one accidental `git add -A` would otherwise put
+hundreds of megabytes of reproducible data into history.
 
 ---
 

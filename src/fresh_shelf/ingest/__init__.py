@@ -159,6 +159,7 @@ class Ingestor:
         date_from: date | None = None,
         date_to: date | None = None,
         force: bool = False,
+        prune: bool = True,
     ) -> pd.DataFrame:
         """Load the landing zone.
 
@@ -166,6 +167,14 @@ class Ingestor:
         which is what `make backfill` uses after a code change to a loader. It is
         safe because every loader replaces its rows for the business days it
         touches rather than appending blindly.
+
+        ``prune`` drops raw rows that no file in the landing zone accounts for.
+        Without it, shrinking the world leaves the previous world behind: run the
+        eight-store estate, then `make world-small`, and `raw` holds both because
+        nothing ever deletes a store that stopped appearing. That is a genuine
+        reproducibility hole rather than a test artefact — the report would be
+        built on two worlds at once, and the only visible symptom is a number
+        that is quietly too big.
         """
         self._ensure_meta_tables()
         known = self._known_checksums() if not force else {}
@@ -176,6 +185,9 @@ class Ingestor:
         for path in files:
             source = path.relative_to(self.cfg.paths.landing_dir).parts[0]
             by_source.setdefault(source, []).append(path)
+
+        if prune:
+            self._prune_sources(by_source, date_from=date_from, date_to=date_to)
 
         for source, paths in by_source.items():
             loader = schema.LOADERS[source]
@@ -341,6 +353,109 @@ class Ingestor:
             if stores:
                 keys["store_code"] = stores
         return keys
+
+    def _prune_sources(
+        self,
+        by_source: dict[str, list[Path]],
+        *,
+        date_from: date | None,
+        date_to: date | None,
+    ) -> None:
+        """Delete raw rows the current landing zone cannot account for.
+
+        The load itself only replaces the (day, store) pairs a file covers, which
+        is what makes it idempotent. That is necessary but not sufficient: if the
+        world *shrinks* — a backfill over a narrower window, or `world-small`
+        after `world` — the stores and days that no longer appear are never
+        overwritten, so they survive and the report is built on two worlds.
+
+        The prune is scoped so it can only ever remove what has genuinely gone:
+
+        * **It only runs on a full load.** A `--from`/`--to` load is a backfill of
+          a window, not a statement that the rest of history has gone, so pruning
+          is skipped entirely when a window was requested. (An earlier version
+          pruned anyway and truncated 3,000 rows a caller had asked to keep.)
+        * **Per source**, so a source absent from the landing zone is left alone
+          rather than read as "delete everything".
+        * **By store**, because a shrinking world is the case that actually bites:
+          the eight-store estate followed by a two-store run left six stores'
+          rows in `raw` forever, and the report was quietly built on two worlds.
+        """
+        if date_from is not None or date_to is not None:
+            # A windowed load is a backfill. Deleting outside its window would
+            # destroy exactly the history the caller was trying to keep.
+            return
+
+        for source, paths in by_source.items():
+            if not paths or not self._table_has_rows(source):
+                continue
+            columns = self._table_columns(source)
+            if "business_date" not in columns:
+                continue
+
+            # What the current landing zone actually accounts for, at the grain
+            # the table is keyed on.
+            file_stores: list[str] = []
+            file_days: set[date] = set()
+            for path in paths:
+                hint = self._business_date_from_dir(path)
+                if hint is None:
+                    continue
+                file_days.add(hint)
+                parts = path.name.split("_")
+                if len(parts) > 1 and parts[1][:1].isalpha():
+                    file_stores.append(parts[1])
+            if not file_days:
+                continue
+
+            conditions: list[str] = []
+            params: list[object] = []
+
+            # 1. Stores that no longer appear in this world. Run an eight-store
+            #    estate then a two-store world and six stores' rows would sit in
+            #    raw forever, so the report was built on two worlds at once.
+            if "store_code" in columns and file_stores:
+                distinct_stores = sorted(set(file_stores))
+                placeholders = ", ".join(["?"] * len(distinct_stores))
+                conditions.append(f"store_code NOT IN ({placeholders})")
+                params.extend(distinct_stores)
+
+            # 2. Days outside the window the files themselves span. Derived from
+            #    the files rather than from config, so it cannot disagree with
+            #    what was actually landed. A day whose file is merely LATE is not
+            #    a day that has gone — but `world` regenerates the whole landing
+            #    zone, so a day with no file at all genuinely is not in this world.
+            #
+            #    This is deliberately only a *window* check: it removes history
+            #    outside the landed span, never gaps inside it, because a gap
+            #    inside is a missing file the pipeline must report (D03), not
+            #    silently delete.
+            conditions.append("business_date < ?")
+            params.append(min(file_days))
+            conditions.append("business_date > ?")
+            params.append(max(file_days))
+
+            if conditions:
+                removed = self.con.execute(
+                    f"DELETE FROM {RAW_SCHEMA}.{source} WHERE {' OR '.join(conditions)}",
+                    params,
+                ).fetchall()
+                del removed
+                log.debug("pruned %s to the current world", source)
+
+    def _table_columns(self, table: str) -> set[str]:
+        rows = self.con.execute(
+            """
+            SELECT column_name FROM information_schema.columns
+            WHERE table_schema = ? AND table_name = ?
+            """,
+            [RAW_SCHEMA, table],
+        ).fetchall()
+        return {r[0] for r in rows}
+
+    @staticmethod
+    def _is_snapshot(source: str) -> bool:
+        return source in schema.REFERENCE_SOURCES
 
     def _table_has_rows(self, table: str) -> bool:
         return bool(

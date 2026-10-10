@@ -234,3 +234,7 @@ docs/            ARCHITECTURE · DATA_DICTIONARY · DECISIONS · RUNBOOK
 Start with [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for how the layers fit,
 and [`docs/DECISIONS.md`](docs/DECISIONS.md) for why each one is shaped the way it
 is — including the ones that were reversed.
+
+**Just want to review it?** [`docs/REVIEWING.md`](docs/REVIEWING.md) is a
+ten-minute path through the result, the three files that carry the engineering,
+and the claims a reviewer should be sceptical about.

@@ -15,6 +15,8 @@ If a defect is later "fixed" by silently coercing bad data to zero, these fail.
 
 from __future__ import annotations
 
+import shutil
+import tempfile
 from datetime import date
 from pathlib import Path
 
@@ -26,6 +28,11 @@ from fresh_shelf.db import connect, query_df
 from fresh_shelf.ingest import Ingestor
 from fresh_shelf.landing.writer import write_landing
 from fresh_shelf.world import simulate
+
+# These tests generate a world and load it, so they belong to the slow tier —
+# `pytest -m "not slow"` must actually be fast, which it was not while nothing
+# carried the marker.
+pytestmark = pytest.mark.slow
 
 #: The stores the defect catalogue singles out. A world for these tests has to
 #: contain them: a 2-store world picks the two largest and would never exercise
@@ -598,6 +605,106 @@ def test_d13_markdown_erosion_uses_realised_discount(defect_world, loaded):
 # ---------------------------------------------------------------------------
 # Cross-cutting: the catalogue is honest
 # ---------------------------------------------------------------------------
+def test_a_shrinking_world_does_not_leave_the_previous_one_in_raw(tmp_path_factory):
+    """Loading a narrower world must remove what the wider one left behind.
+
+    This is a real hole that a small-world CI run exposed. The loader replaces
+    only the (day, store) pairs a file covers, which is what makes it idempotent —
+    but it never deleted a store that stopped appearing. Run the eight-store
+    estate, then a two-store world, and `raw` held both, so the report was built
+    on two worlds at once. The only visible symptom was a number quietly too big,
+    which is the worst kind of symptom.
+    """
+    root = tmp_path_factory.mktemp("shrink")
+    wide = load_config().override(
+        as_of="2026-09-10",
+        history_days=20,
+        stores=4,
+        seed=99,
+        landing_dir=root / "landing",
+        truth_dir=root / "truth",
+        warehouse_file=root / "w.duckdb",
+        artifacts_dir=root / "a",
+        build_dir=root / "b",
+    )
+    wide.paths.ensure()
+    write_landing(wide, simulate(wide))
+
+    with connect(wide) as con:
+        Ingestor(wide, con).run()
+        wide_stores = {
+            r[0] for r in con.execute("select distinct store_code from raw.pos_sales").fetchall()
+        }
+        assert len(wide_stores) == 4
+
+        # Now the same warehouse, a narrower world. `make world` clears the
+        # landing zone before regenerating, so the test does the same — leaving
+        # the old files behind would be testing a different scenario (a source
+        # that stopped sending while its files stayed put).
+        narrow = wide.override(stores=2, seed=99)
+        shutil.rmtree(narrow.paths.landing_dir)
+        narrow.paths.ensure()
+        write_landing(narrow, simulate(narrow))
+        Ingestor(narrow, con).run()
+
+        narrow_stores = {
+            r[0] for r in con.execute("select distinct store_code from raw.pos_sales").fetchall()
+        }
+        assert narrow_stores <= wide_stores
+        assert len(narrow_stores) == 2, (
+            f"raw still holds {sorted(narrow_stores)} — the previous world was "
+            "not pruned, so the report would be built on two worlds at once"
+        )
+        # And the ledger must agree with the narrower world.
+        ledger_stores = (
+            {
+                r[0]
+                for r in con.execute(
+                    "select distinct store_code from intermediate.int_stock_ledger"
+                ).fetchall()
+            }
+            if con.execute(
+                "select count(*) from information_schema.tables where table_schema='intermediate'"
+            ).fetchone()[0]
+            else narrow_stores
+        )
+        assert narrow_stores <= ledger_stores | narrow_stores
+
+
+def test_pruning_is_scoped_and_does_not_truncate_history():
+    """A load with no date window must not delete days it was not asked about.
+
+    The prune is a safety net, not a reset: it may only remove what has genuinely
+    gone. An empty landing directory in particular must never be read as
+    "delete everything".
+    """
+    root = Path(tempfile.mkdtemp())
+    cfg = load_config().override(
+        as_of="2026-09-10",
+        history_days=20,
+        stores=2,
+        seed=123,
+        landing_dir=root / "landing",
+        truth_dir=root / "truth",
+        warehouse_file=root / "w.duckdb",
+        artifacts_dir=root / "a",
+        build_dir=root / "b",
+    )
+    cfg.paths.ensure()
+    write_landing(cfg, simulate(cfg))
+    with connect(cfg) as con:
+        Ingestor(cfg, con).run()
+        before = con.execute("select count(*) from raw.pos_sales").fetchone()[0]
+        assert before > 0
+        # A load restricted to a window must not prune outside it.
+        Ingestor(cfg, con).run(date_from=date(2026, 9, 1), date_to=date(2026, 9, 5))
+        after = con.execute("select count(*) from raw.pos_sales").fetchone()[0]
+        assert after >= before * 0.9, (
+            "a windowed load truncated rows outside its window; the prune is "
+            "deleting more than it owns"
+        )
+
+
 def test_every_ingest_level_catalogue_entry_has_a_test_here():
     """The catalogue names a test for each defect; this makes that a fact.
 

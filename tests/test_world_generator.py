@@ -11,6 +11,10 @@ from fresh_shelf.config import load_config
 from fresh_shelf.world import simulate
 from fresh_shelf.world.master import build_masters, items
 
+# Builds a 45-day world, so it is slower than the pure-logic tests but far
+# cheaper than the defect suite. Marked `slow` to keep `-m "not slow"` honest.
+pytestmark = pytest.mark.slow
+
 
 @pytest.fixture(scope="module")
 def micro_world(tmp_path_factory):
