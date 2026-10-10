@@ -1,0 +1,65 @@
+[project]
+name = "fresh-shelf-ops"
+version = "0.1.0"
+description = "Waste-vs-revenue optimisation for short-shelf-life fresh departments — DuckDB warehouse, dbt models, forecast + markdown optimiser"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "MIT" }
+
+dependencies = [
+    "duckdb>=1.5,<2",
+    "dbt-duckdb>=1.11,<2",
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "pyarrow>=15",
+    "scikit-learn>=1.5",
+    "click>=8.1",
+    "PyYAML>=6.0",
+    "Jinja2>=3.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.9",
+    "pre-commit>=3.7",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fresh_shelf"]
+
+[tool.uv]
+package = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+    "slow: generates a multi-store world and runs dbt (deselect with -m 'not slow')",
+    "warehouse: needs a built DuckDB warehouse in data/warehouse",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+extend-exclude = ["target", "logs", "data", "build"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "PTH", "RET", "RUF", "NPY"]
+ignore = [
+    "E501",  # long URLs / SQL strings in docstrings
+    "RUF001",  # ambiguous unicode in prose (we write en-dashes and $ signs)
+    "RUF002",
+    "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ARG001", "S101", "RUF059"]
+
+[tool.ruff.format]
+quote-style = "double"

@@ -1,0 +1,70 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      UV_CACHE_DIR: /tmp/uv-cache
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sync dependencies (locked)
+        run: |
+          uv python install 3.12
+          uv sync --all-groups --frozen
+
+      - name: Lint
+        run: |
+          .venv/bin/ruff check .
+          .venv/bin/ruff format --check .
+
+      - name: Unit + contract tests
+        run: .venv/bin/pytest -m "not slow" --tb=short
+
+      # End-to-end on a deliberately small world: the same code paths the daily
+      # run uses, in a couple of minutes, on every push.
+      - name: Simulate a small world
+        run: make world-small
+
+      - name: Load raw layer
+        run: make ingest
+
+      - name: dbt seed + build
+        run: make build
+
+      - name: Forecast + optimise
+        run: |
+          make forecast
+          make optimise
+
+      - name: Render report
+        run: make report
+
+      - name: Idempotency — land, load and build again, expect identical raw counts
+        run: make idempotency
+
+      - name: Upload warehouse + report artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fresh-shelf-artifacts
+          path: |
+            data/artifacts/**
+            build/report/**
+            target/manifest.json
+          retention-days: 7

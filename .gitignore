@@ -1,0 +1,24 @@
+# Local Python environment / tooling
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+
+# Generated data — the landing zone, the warehouse and every artifact are
+# reproducible from `make world`; never commit them.
+data/
+build/
+
+# dbt
+target/
+dbt_packages/
+logs/
+# dbt writes a per-machine install id here; it is not part of the project.
+.user.yml
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/

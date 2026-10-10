@@ -1,0 +1,21 @@
+# dbt profile for the local DuckDB warehouse.
+#
+#   FRESH_SHELF_DB   the warehouse file (default: data/warehouse/fresh_shelf.duckdb)
+#   DBT_TARGET       dev (default) | ci
+#
+# There is no password and no server: the warehouse is one file, which is
+# exactly why a reviewer can reproduce every number in the report locally with
+# `make world && make daily`.
+fresh_shelf:
+  target: "{{ env_var('DBT_TARGET', 'dev') }}"
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('FRESH_SHELF_DB', 'data/warehouse/fresh_shelf.duckdb') }}"
+      schema: main
+      threads: 4
+    ci:
+      type: duckdb
+      path: "{{ env_var('FRESH_SHELF_DB', 'data/warehouse/ci.duckdb') }}"
+      schema: main
+      threads: 2

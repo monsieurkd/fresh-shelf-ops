@@ -1,0 +1,56 @@
+name: pages
+
+# The report is a build artifact of the pipeline, so pages is rebuilt from the
+# pipeline rather than committed. Only runs on main, and only after ci is green.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "models/**"
+      - "src/**"
+      - "config/**"
+      - "dbt_project.yml"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      UV_CACHE_DIR: /tmp/uv-cache
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: |
+          uv python install 3.12
+          uv sync --all-groups --frozen
+      # A 3-store, 180-day world keeps the published report honest but quick.
+      - run: |
+          .venv/bin/python -m fresh_shelf.cli world --stores 3 --days 180
+          .venv/bin/python -m fresh_shelf.cli run
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/report
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
