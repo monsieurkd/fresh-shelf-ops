@@ -33,7 +33,7 @@ are on the page rather than the flattering one.
 
 ```bash
 make test-unit     # 44 pure-logic tests, none of which may skip
-make test          # all 70, including world generation
+make test          # all 72, including world generation
 ```
 
 The two suites worth reading rather than just running:
@@ -61,7 +61,7 @@ trustworthy about anything else.
 
 ## 6. Where the honest bugs are recorded
 
-`docs/DECISIONS.md` has fifteen decisions with reversal paths. Two are marked
+`docs/DECISIONS.md` has eighteen decisions with reversal paths. Two are marked
 **reversed** — they were got wrong first, and the reasoning that failed is kept
 because it is more instructive than the reasoning that worked:
 
@@ -72,6 +72,11 @@ because it is more instructive than the reasoning that worked:
   published components did not add up to the published total.
 
 Both now have tests, because both are the kind of error that renders perfectly.
+
+**AD-16** is the one worth reading if you only read one: three of the bugs in this
+project — including a six-figure one — were the same mistake in different clothes,
+namely two pipeline stages disagreeing about *which world* they were describing.
+Every symptom was a number quietly too big, and no error.
 
 ---
 

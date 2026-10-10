@@ -269,3 +269,83 @@ a baseline nobody can inspect is not credible. The cost is that the baseline is 
 model of the habit rather than the habit itself.
 
 **Reverse.** If real order data became available it would replace this directly.
+
+---
+
+## AD-16 — One scope, passed to every stage
+
+**Decision.** The Makefile passes `--stores`/`--days` to `world`, `ingest`,
+`build`, `forecast`, `optimise` and `report`. `dbt` is never invoked directly; it
+goes through `fresh_shelf.cli dbt`, which exports the project's clock and
+warehouse file.
+
+**Why.** A pipeline whose stages disagree about *which world* they are describing
+produces numbers that are wrong rather than absent. This was a real bug, present
+from the first commit, with three faces:
+
+- `world` received the scope and the other stages did not, so the loader defaulted
+  to all stores and loaded 2 files out of 1,444 — while every command printed
+  success.
+- A bare `dbt build` used `profiles.yml`'s default warehouse path, which could be
+  a different database than `make ingest` had populated.
+- Shrinking the world left the previous world's rows in `raw`, because the loader
+  replaces only the (day, store) pairs a file covers. An eight-store estate
+  followed by a two-store run held 7.5M units of sales against a ledger of 807k.
+
+Every symptom was the same shape: **a number quietly too big, and no error.**
+
+**Enforcement.** `ingest` prunes `raw` to the landed window and store set, scoped
+so it cannot remove what a caller asked to keep (a windowed backfill skips the
+prune entirely). Two tests pin that scope. CI builds the world *before* the tests
+so nothing skips.
+
+**Reverse.** Run stages with explicit flags; the CLI takes them individually. The
+prune can be disabled with `prune=False` on the ingestor.
+
+---
+
+## AD-17 — The CI world is sized to cover the defects, not to be fast
+
+**Decision.** `make world-small` defaults to **four stores (S01/S03/S05/S07) over
+180 days** — the stores `config/defect_catalogue.yml` singles out — rather than the
+smallest world that runs.
+
+**Why.** Several dbt tests assert that a defect is *still being produced*, which is
+what stops them passing vacuously. At two stores and 90 days those assertions had
+nothing to assert against: there were **no waste events at all**, because the
+stores carrying the substitution, pack-count and reason-code defects were not in
+the world.
+
+The failure was instructive. The tests failed for the *right reason* — the defect
+was not being produced — but the *wrong cause*, which sent me looking at the
+models rather than at the world's size.
+
+**Cost.** CI is slower. The trade is deliberate: a fast job that cannot exercise
+the loss pipeline is not testing the thing the project is about.
+
+**Reverse.** `make world-small STORES=2 DAYS=90`. Expect three dbt tests to fail,
+which is the signal that the world no longer covers the catalogue.
+
+---
+
+## AD-18 — A missing warehouse fails the tests; it does not skip them
+
+**Decision.** The report test fixture calls `pytest.fail`, not `pytest.skip`, when
+there is no warehouse. `make test-unit` asserts the fast tier skipped nothing.
+
+**Why.** A skip reads as coverage that is not there. Five report tests would have
+silently skipped on every fresh checkout while CI reported green, and the two
+things they protect — that the charts render and that the caveats are stated —
+are exactly the things that break quietly.
+
+**Reverse.** Change `fail` back to `skip` and lose the signal. Not recommended.
+
+**Decision.** The comparison plan rebuilds the estate's order-up-to habit from
+delivery history rather than from recorded orders (the source does not carry
+them), and every impact row states its basis.
+
+**Why.** A recommendation with nothing to compare against is not actionable, and
+a baseline nobody can inspect is not credible. The cost is that the baseline is a
+model of the habit rather than the habit itself.
+
+**Reverse.** If real order data became available it would replace this directly.

@@ -161,12 +161,15 @@ notice.
 
 ## CI
 
-`make ci` mirrors the pipeline: lint, then a **small world end to end** (2 stores,
-90 days), then the full test suite, then the idempotency check.
+`make ci` mirrors the pipeline: lint, then the **CI world end to end** (four
+stores — S01/S03/S05/S07 — over 180 days), then the full test suite, then the
+idempotency check.
 
-A small world is enough to exercise every code path; it is not enough to exercise
-every defect, which is why the defect tests build their own world containing the
-specific stores each defect lives in.
+**The CI world is sized to cover the defects, not to be fast.** Those four stores
+are the ones `config/defect_catalogue.yml` singles out. A two-store, 90-day world
+is quicker but exercises nothing: there were **no waste events at all**, so the
+tests asserting "the defect is still being produced" had nothing to assert
+against and failed for the right reason but the wrong cause.
 
 **The tests run *after* the world is built, deliberately.** Five report tests need
 a warehouse, and a green run with skipped tests is worse than a red one — it
@@ -175,8 +178,8 @@ than skipping when there is no warehouse, and `make test-unit` asserts that the
 fast tier skipped nothing:
 
 ```bash
-make test-unit    # 44 pure-logic tests, zero skips allowed
-make test         # all 70, including world generation
+make test-unit    # pure-logic tests, zero skips allowed
+make test         # everything, including world generation
 ```
 
 To run the static checks only (what the pre-commit hook does):
@@ -188,6 +191,23 @@ git config core.hooksPath .githooks    # opt in once
 The hook runs ruff and refuses to commit generated files under `data/`, `build/`,
 `target/` or `dbt_packages/` — one accidental `git add -A` would otherwise put
 hundreds of megabytes of reproducible data into history.
+
+### One rule about scope
+
+Every stage must be given the **same** world scope. The Makefile passes
+`--stores $(STORES) --days $(DAYS)` to `world`, `ingest`, `build`, `forecast`,
+`optimise` and `report`. It did not always: `world` got the scope and nothing else
+did, so the loader defaulted to all stores and loaded 2 files out of 1,444 while
+every command reported success.
+
+For the same reason, never invoke `dbt` directly in a recipe. `profiles.yml` has a
+default warehouse path, so a bare `dbt build` will happily build a different
+database than `make ingest` populated. Use the passthrough, which exports the
+project's clock and warehouse:
+
+```bash
+fresh_shelf.cli dbt build
+```
 
 ---
 

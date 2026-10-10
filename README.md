@@ -134,8 +134,17 @@ open build/report/index.html
 | `optimise` | 1s | 9,436 plan rows |
 | `report` | 0.1s | `build/report/index.html` |
 
-A smaller world for a quick loop: `make world-small` then
-`fresh_shelf.cli run --stores 2 --days 90`.
+A faster loop uses the CI world — four stores and 180 days, which is the
+*smallest* world that still exercises every catalogued defect:
+
+```bash
+make world-small && make daily      # ~40s end to end
+```
+
+`STORES` and `DAYS` override it (`make world-small STORES=2 DAYS=90`), but a
+smaller world stops exercising the rare defects: at two stores and 90 days there
+are no waste events at all, so the tests that assert each defect is still being
+*produced* have nothing to assert against.
 
 ---
 
