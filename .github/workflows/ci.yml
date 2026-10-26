@@ -33,7 +33,7 @@ jobs:
           .venv/bin/ruff check .
           .venv/bin/ruff format --check .
 
-      # The world is built BEFORE the tests, deliberately. Five report tests
+      # The world is built BEFORE the tests. Five report tests
       # need a warehouse and would otherwise skip silently, and a green run with
       # skipped tests is worse than a red one: it reads as coverage that is not
       # there. Building first also means the test step exercises the same
@@ -66,7 +66,7 @@ jobs:
       - name: Render report
         run: make report
 
-      - name: Idempotency — land, load and build again, expect identical raw counts
+      - name: Idempotency: land, load and build again, expect identical raw counts
         run: make idempotency
 
       - name: Upload warehouse + report artifacts

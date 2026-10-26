@@ -4,7 +4,7 @@ version: 2
 # Sources: the `raw` schema as the Python ingest layer leaves it.
 #
 # These are *not* the files in the landing zone. By the time dbt runs, the
-# loader has already made every column trustworthy — numbers are numbers, money
+# loader has already made every column trustworthy. Numbers are numbers, money
 # is dollars, timestamps are timestamps, and the business date came from the
 # file's contents rather than its folder (see docs/ARCHITECTURE.md).
 #
@@ -38,13 +38,13 @@ sources:
           - name: discount_amount
             description: "Realised markdown given away at the till (not what was printed)."
           - name: money_unit_as_filed
-            description: "'dollars' or 'cents' — what the source file claimed (D05)."
+            description: "'dollars' or 'cents', what the source file claimed (D05)."
       - name: goods_received
         description: "Supplier deliveries (the GRN). One row per delivery line."
       - name: waste_events
         description: >
           Losses that staff scanned on a handheld. The scanned subset of the
-          disposals that actually happened (D07) — a floor on true loss.
+          disposals that actually happened (D07). It is a floor on true loss.
         columns:
           - name: event_ts_utc
             description: "As the device filed it, in UTC."
@@ -58,7 +58,7 @@ sources:
         description: "Physical counts. The anchor the ledger reconciliation closes against."
       - name: markdown_events
         description: >
-          Printed markdown tickets. Used for depth and timing ONLY — erosion is
+          Printed markdown tickets. Used for depth and timing only. Erosion is
           measured from realised POS discount, because a printed ticket is not
           always honoured at the till (D13).
       - name: promotions

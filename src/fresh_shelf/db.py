@@ -4,8 +4,8 @@ The warehouse is a single file (``data/warehouse/fresh_shelf.duckdb``). DuckDB
 allows one writer at a time, so the pipeline is a *sequence*, not a swarm:
 landing files -> raw (Python) -> transforms (dbt) -> analytics (Python) ->
 report. Every command in ``fresh_shelf.cli`` opens a connection, does its work
-and closes it, which is why `make daily` never deadlocks on a lock file — and
-why nothing here holds a connection open while a subprocess runs.
+and closes it, which is why `make daily` never deadlocks on a lock file. It is
+also why nothing here holds a connection open while a subprocess runs.
 """
 
 from __future__ import annotations
@@ -101,8 +101,8 @@ def replace_table(
     """Publish a DataFrame as a table, atomically enough for this pipeline.
 
     DuckDB creates the table inside the same transaction as the data write, so
-    a downstream reader sees either the old table or the new one — and a re-run
-    of the same step produces the same table, which is what makes `make daily`
+    a downstream reader sees either the old table or the new one. A re-run of the
+    same step produces the same table, which is what makes `make daily`
     safe to repeat.
     """
     con.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")

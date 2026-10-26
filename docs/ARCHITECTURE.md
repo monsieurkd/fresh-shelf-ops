@@ -1,9 +1,8 @@
 # Architecture
 
-How the pieces fit, and — more usefully — where the seams are and why they were
-put there.
+How the pieces fit, where the seams are, and why they sit there.
 
-## The layers
+## Layers
 
 ```
 simulated sources  ->  landing zone  ->  raw  ->  dbt  ->  decision layer  ->  report
@@ -14,78 +13,75 @@ Five boundaries, each with one job:
 
 | Boundary | Contract | Enforced by |
 |---|---|---|
-| sources → landing | Each feed lands as the file a real system would write: one per store-day, named by the writer, in a folder named by *arrival* | `world/`, `landing/writer.py` |
-| landing → raw | After loading, every value is in dollars, in eaches, in Adelaide time, de-duplicated, and traceable to its file | `tests/test_ingest_defects.py` |
-| raw → dbt | The warehouse never reads `data/truth` | `test_the_warehouse_never_reads_the_truth` |
-| dbt → decision layer | The models publish one forecast-eligible population that every consumer uses | `dbt_tests/`, `features.py` |
-| decision layer → report | No number on the page is entered by hand | `tests/test_report.py` |
+| sources to landing | Each feed lands as the file a real system would write: one per store-day, named by the writer, in a folder named by arrival date | `world/`, `landing/writer.py` |
+| landing to raw | Every value is in dollars, in eaches, in Adelaide time, de-duplicated and traceable to its file | `tests/test_ingest_defects.py` |
+| raw to dbt | The warehouse never reads `data/truth` | `test_the_warehouse_never_reads_the_truth` |
+| dbt to decision layer | The models publish one forecast-eligible population that every consumer uses | `dbt_tests/`, `features.py` |
+| decision layer to report | No number on the page is entered by hand | `tests/test_report.py` |
 
-## Why the warehouse is one DuckDB file
+## One DuckDB file
 
-A file, not a server. The whole project has to be reviewable by someone who has
-cloned it and run `make setup`: no container, no credentials, no network. DuckDB
-gives columnar performance on a laptop and lets the report's every figure be
-traced to a query a reader can run themselves.
+The warehouse is a file, not a server. Someone who clones the repo can run
+`make setup` and get the whole thing: no container, no credentials, no network.
+DuckDB is fast enough on a laptop, and every figure in the report can be traced
+to a query a reader can run.
 
-The cost is a single writer at a time, so the pipeline is a *sequence*, not a
-swarm — which is also what makes `make daily` safe to re-run and the lock
-behaviour obvious rather than surprising.
+The cost is a single writer, so the pipeline runs as a sequence rather than in
+parallel. That also keeps `make daily` safe to re-run.
 
-## The stock ledger is the spine
+## The stock ledger
 
-`int_stock_ledger` is one row per store, item and trading day, and every loss
-number the report quotes is a term in it. It is built this way because both
-obvious shortcuts are wrong:
+`int_stock_ledger` has one row per store, item and trading day. Every loss
+figure in the report is a term in it. The two obvious shortcuts are both wrong:
 
-- **"Waste = what the scan file says" is wrong.** Scans are filed when a handheld
-  is to hand (D07), so the scan total is a floor. `int_loss_reconciliation`
-  measures the gap rather than assuming it away.
-- **"Sales + waste = what we bought" is wrong.** It ignores preparation loss, a
-  rejected delivery and counting error, and turns ordinary operational noise into
-  a fictitious shrinkage scandal.
+- Trusting the scan file. Scans only happen when a handheld is to hand (D07), so
+  the scan total is a floor. `int_loss_reconciliation` measures the gap instead
+  of assuming it away.
+- Treating sales plus waste as purchases. That ignores preparation loss,
+  rejected deliveries and counting error, and turns ordinary operational noise
+  into a fictitious shrinkage scandal.
 
-So the ledger states each movement separately and reconciles against physical
+The ledger states each movement separately and reconciles against physical
 counts:
 
 ```
-opening + received − sold − prep loss − recorded waste = expected closing
+opening + received - sold - prep loss - recorded waste = expected closing
 expected closing vs the last count                     = the residue
 ```
 
-The residue is where unrecorded shrink lives. It is reported, not hidden, and it
-carries a confidence score — because a count eyeballed to ±3% cannot resolve a 1%
-loss, and saying otherwise would present count noise as a finding.
+The residue is where unrecorded shrink lives. It is reported with a confidence
+score, because a count eyeballed to plus or minus 3% cannot resolve a 1% loss.
 
-## Why the loss concepts are never summed
+## Three losses, three fixes
 
-Three losses, three fixes, so they stay separate all the way to the page:
+The loss concepts stay separate all the way to the page:
 
 | Concept | Valued at | Fixed by |
 |---|---|---|
-| **Markdown erosion** | the margin given away | marking down later and shallower |
-| **Recorded waste** | the cost of the stock | ordering less, or more often |
-| **Unrecorded shrink** | the cost of the stock | a process problem, not a buying one |
+| Markdown erosion | the margin given away | marking down later and shallower |
+| Recorded waste | the cost of the stock | ordering less, or more often |
+| Unrecorded shrink | the cost of the stock | a process problem, not a buying one |
 
-A single "total loss" figure would average three different conversations into a
-number nobody can act on. `tests/test_report.py` asserts the page never
-introduces one.
+A single total loss figure would average three different conversations into a
+number nobody can act on. `tests/test_report.py` checks that the page does not
+introduce one.
 
-## The decision layer
+## Decision layer
 
 ```
 marts.fct_store_item_day
         |
         v
-  features (strictly trailing windows)
+  features (trailing windows)
         |
         v
-  rolling-origin backtest -----> calibration (what q0.95 REALLY covers)
+  rolling-origin backtest -----> calibration (what q0.95 actually covers)
         |                                    |
         v                                    v
   forward forecast  ------------>  replenishment plan (newsvendor, capped by shelf life)
         |                                    |
         v                                    v
-  markdown plan (DP over stock x days left)  waste-vs-revenue frontier
+  markdown plan (DP over stock x days left)  waste and revenue frontier
         |                                    |
         +---------------> dollar impact <----+
                               |
@@ -93,26 +89,24 @@ marts.fct_store_item_day
                    reconciliation (do the two methods agree?)
 ```
 
-Three design rules, each of which has a corresponding test:
+Three rules, each with a test:
 
-1. **Nothing looks at the future.** Feature windows end at `1 preceding`; the
+1. Nothing looks at the future. Feature windows end at one preceding day; the
    backtest refits at each cut-off and scores only the horizon after it.
-2. **The model's weakness is measured, not assumed.** q0.95 delivers ~0.87
-   coverage on this estate, so the optimiser is told the *achieved* level rather
-   than the nominal one.
-3. **Two methods, and their disagreement is published.** The frontier and the
-   dollar impact answer the same question from different directions. When they
-   disagree, that is the most informative thing on the page, so
-   `impact_reconciliation` exists to say so.
+2. The model's weakness is measured. q0.95 delivers about 0.87 coverage on this
+   estate, so the optimiser uses the achieved level rather than the nominal one.
+3. Two methods are published, including their disagreement. The frontier and the
+   dollar impact answer the same question from different directions, and
+   `impact_reconciliation` reports where they diverge.
 
-## Testing shape
+## Tests
 
 | Suite | Proves |
 |---|---|
-| `test_world_generator.py` | The simulated world is self-consistent: deterministic, non-negative, ledger closure |
+| `test_world_generator.py` | The simulated world is deterministic, non-negative, and its ledger closes |
 | `test_ingest_defects.py` | The loader recovers the sealed truth from dirty files, one test per defect |
-| `dbt_tests/` | The warehouse's business meaning, one singular test per defect D07–D13 |
-| `test_decision_layer.py` | The decisions are right given the data — including that the impact table adds up |
+| `dbt_tests/` | The warehouse's business meaning, one singular test per defect D07 to D13 |
+| `test_decision_layer.py` | The decisions are right given the data, including that the impact table adds up |
 | `test_report.py` | The report is self-contained, well-formed, and does not overstate |
 
 The split matters. A world test cannot prove a redelivery was de-duplicated, and
@@ -120,12 +114,12 @@ an ingest test cannot prove the ledger reconciles.
 
 ## Known limitations
 
-- **Quarantine is implemented but unexercised.** `ops.raw_quarantine` is reachable
-  and every loader can populate it, but no simulated world produces an
+- Quarantine is implemented but not exercised. `ops.raw_quarantine` is reachable
+  and every loader can write to it, but no simulated world produces an
   unparseable value, so the branch has no test. A deliberately corrupt fixture
-  file would close this.
-- **The warehouse is rebuilt, not incrementally maintained.** `dbt build` runs
-  the full DAG in ~12s at this scale, so incremental models would be complexity
-  for no benefit. At ten times the estate they would be the first thing to add.
-- **Weather is a perfect forecast.** Stated in the report; the fix would be to
-  introduce forecast error into the simulation.
+  would close it.
+- The warehouse is rebuilt, not maintained incrementally. `dbt build` takes about
+  12 seconds at this scale. At ten times the estate, incremental models would be
+  the first change to make.
+- Weather is a perfect forecast. The simulation gives the model exact future
+  temperatures. The fix would be to add forecast error.

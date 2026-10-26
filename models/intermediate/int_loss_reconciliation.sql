@@ -17,7 +17,7 @@
 
   3. **Publish a floor and a point estimate, never a single confident number.**
      Recorded waste is a *measured* floor. The residue is an *estimate* whose
-     uncertainty is driven by how good the counts are — an eyeballed count to
+     uncertainty is driven by how good the counts are. An eyeballed count to
      +/-3% cannot resolve a 1% loss, and saying otherwise would turn ordinary
      count noise into a fictitious shrinkage scandal.
 
@@ -47,8 +47,8 @@ with counted_days as (
 -- Crucially the book has an OPENING position. A store does not start the window
 -- with an empty shelf, but the deliveries in the window only account for what
 -- arrived *during* it. Without an opening anchor the first segment's residue
--- absorbs the entire pre-window stock and comes out as a huge spurious shrink —
--- which is exactly what it did before this was added.
+-- absorbs the entire pre-window stock and comes out as a huge spurious shrink.
+-- That is exactly what it did before this was added.
 opening as (
 
     -- The earliest count for each store-item inside the window. Whatever the
@@ -213,7 +213,7 @@ select
 
     -- The residue: stock that left without leaving a record behind.
     --
-    -- Positive means more disappeared than the records explain — genuine
+    -- Positive means more disappeared than the records explain: genuine
     -- unrecorded shrink (unscanned disposals, damage, and whatever else).
     -- Negative means the records claim more left than the count agrees with,
     -- which is what a coarse count looks like from this side; it is kept
@@ -226,8 +226,8 @@ select
 
     -- How much to trust the residue. A full count on a short-life line is a
     -- good anchor; a midweek cycle count of a packaged long-life line is not.
-    -- The score is deliberately crude and deliberately visible: its purpose is
-    -- to stop a low-confidence residue being quoted as if it were measured.
+    -- The score is crude and visible on purpose. Its purpose is to stop a
+    -- low-confidence residue being quoted as if it were measured.
     cast(
         case
             when has_full_count and shelf_life_days <= 7 then 1.00
@@ -245,7 +245,7 @@ select
     --
     --   * genuine unscanned waste and prep trims (the D07 defect),
     --   * count error, which is +/-3% on a book whose segment moves ~1.2k units,
-    --   * booking mistakes — a misfiled count or a double-booked delivery.
+    --   * booking mistakes, such as a misfiled count or a double-booked delivery.
     --
     -- On this estate the count-error term dominates: measured against the
     -- simulator's own records the residue runs about 8x the true unscanned

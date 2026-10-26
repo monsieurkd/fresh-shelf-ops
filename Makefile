@@ -1,4 +1,4 @@
-# fresh-shelf-ops — every task is idempotent and re-runnable.
+# fresh-shelf-ops. Every task is idempotent and can be re-run.
 #
 #   make setup      one-time: toolchain + dependencies
 #   make world      simulate the source systems into data/landing (dirty)
@@ -16,7 +16,7 @@ DBT := .venv/bin/dbt
 
 # NB: never call $(DBT) directly from a recipe. It would run without the project's
 # clock and warehouse exported, so it would build whichever database
-# profiles.yml defaults to — which is how a small world silently produced empty
+# profiles.yml defaults to. That is how a small world silently produced empty
 # staging tables while every command reported success. Use `cli dbt` instead.
 
 # Small world for CI. Sized to cover the stores the defect catalogue singles out
@@ -40,7 +40,7 @@ setup: ## Create .venv, install dependencies (uv), install git hooks
 	uv python install 3.12
 	uv sync --all-groups
 	.venv/bin/pre-commit install --install-hooks
-	@echo "ready — try: make world && make daily"
+	@echo "ready. Try: make world && make daily"
 
 world: ## Simulate the full estate into the landing zone (dirty source files + sealed truth)
 	$(PY) -m fresh_shelf.cli world
@@ -81,10 +81,10 @@ status: ## Show the latest run manifest and table row counts
 test: ## Full pytest suite
 	$(PY) -m pytest
 
-test-unit: ## Fast tests only — pure logic, no world generation (must not skip)
+test-unit: ## Fast tests only: pure logic, no world generation (must not skip)
 	@$(PY) -m pytest -m "not slow" -q -rs | tee /tmp/fresh-shelf-fast.log
 	@! grep -q skipped /tmp/fresh-shelf-fast.log || \
-		{ echo "the fast tier skipped a test — it is meant to need no warehouse"; exit 1; }
+		{ echo "the fast tier skipped a test; it is meant to need no warehouse"; exit 1; }
 
 test-slow: ## Only the tests that generate a world
 	$(PY) -m pytest -m slow
@@ -116,7 +116,7 @@ docs: ## Generate the dbt docs site into build/dbt-docs
 	elif [ -f target/static_index.html ]; then \
 		cp target/static_index.html build/dbt-docs/index.html; \
 	else \
-		echo "docs generation produced no index.html — check the dbt version" >&2; exit 1; \
+		echo "docs generation produced no index.html; check the dbt version" >&2; exit 1; \
 	fi
 	@cp target/catalog.json target/manifest.json build/dbt-docs/
 	@echo "dbt docs in build/dbt-docs/index.html"
@@ -128,7 +128,7 @@ clean: ## Delete caches and dbt artifacts
 	rm -rf .pytest_cache .ruff_cache target logs
 	find . -name '__pycache__' -type d -prune -exec rm -rf {} +
 
-ci: ## Parity with .github/workflows/ci.yml — run before pushing
+ci: ## Parity with .github/workflows/ci.yml, run before pushing
 	.venv/bin/ruff check .
 	.venv/bin/ruff format --check .
 	$(MAKE) world-small

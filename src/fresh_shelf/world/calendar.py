@@ -5,8 +5,8 @@ on Christmas Day and Good Friday, trades late on Thursdays, empties the seafood
 counter in the week before Christmas and sells salads in a heatwave. This module
 turns the pinned window into one row per day with the attributes demand hangs
 off, and reads the SA public holidays and school term breaks from the curated
-seeds — the same files dbt seeds into the warehouse, so the simulation and the
-report can never disagree about whether 2026-04-03 was a trading day.
+seeds. These are the same files dbt seeds into the warehouse, so the simulation
+and the report can never disagree about whether 2026-04-03 was a trading day.
 """
 
 from __future__ import annotations
@@ -32,11 +32,11 @@ SPECIAL_DAYS: dict[tuple[int, int], tuple[str, float]] = {
     (1, 2): ("Post-New-Year", 1.05),
 }
 
-#: Black Friday (the last Friday in November) — an imported event, but SA fresh
-#: departments have felt it since about 2019.
+#: Black Friday (the last Friday in November). It is an imported event, but SA
+#: fresh departments have felt it since about 2019.
 BLACK_FRIDAY_FOOTFALL = 1.45
 
-#: Public-holiday footfall. A closed store trades zero units — see `is_closed`.
+#: Public-holiday footfall. A closed store trades zero units (see `is_closed`).
 HOLIDAY_FOOTFALL = {
     "Christmas Day": 0.0,
     "Good Friday": 0.0,

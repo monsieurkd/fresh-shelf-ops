@@ -6,11 +6,11 @@
   Local business time.
 
   The loss scanners write UTC while every other feed writes Adelaide local
-  time, and Adelaide is +9:30 ACST / +10:30 ACDT — a 30-minute offset, not an
-  hour, and the DST switch lands mid-service. So the conversion is done in the
+  time, and Adelaide is +9:30 ACST / +10:30 ACDT, a 30-minute offset rather than
+  an hour, and the DST switch lands mid-service. So the conversion is done in the
   warehouse with the IANA zone (DuckDB bundles ICU) rather than with an offset
   someone hard-coded, and the *business date* is always derived from the local
-  timestamp — never from the date part of the raw string.
+  timestamp, never from the date part of the raw string.
 #}
 {% macro local_ts(utc_ts) -%}
     ({{ utc_ts }} AT TIME ZONE '{{ tz_name() }}')

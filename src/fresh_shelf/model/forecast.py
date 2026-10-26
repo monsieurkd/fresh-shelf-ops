@@ -1,14 +1,13 @@
 """Demand forecasting, and the backtest that decides whether to believe it.
 
-Three models, deliberately of different kinds, because the comparison is the
-point — a single model tells you nothing about whether the problem is hard or the
-model is weak:
+Three models of different kinds, because the comparison matters. A single model
+tells you nothing about whether the problem is hard or the model is weak:
 
-* ``seasonal_naive`` — last week, same weekday. The baseline every retail
+* ``seasonal_naive``: last week, same weekday. The baseline every retail
   forecast has to beat, and on a stable fresh line it is genuinely hard to beat.
-* ``dow_mean`` — the mean of the last four same-weekdays. Smooths noise but
+* ``dow_mean``: the mean of the last four same-weekdays. Smooths noise but
   tracks nothing; it is what a store manager does in their head.
-* ``hgb_quantile`` — gradient-boosted trees trained with a *pinball* loss, which
+* ``hgb_quantile``: gradient-boosted trees trained with a *pinball* loss, which
   is what makes a quantile forecast possible. Ordinary least squares predicts a
   mean; an ordering decision needs a quantile, because the cost of being short
   and the cost of over-ordering are not equal.
@@ -85,7 +84,7 @@ def pinball_loss(actual: np.ndarray, predicted: np.ndarray, quantile: float) -> 
 
     Asymmetric on purpose: predicting above the quantile is penalised at
     ``quantile`` and below it at ``1 - quantile``. At q=0.9, under-forecasting
-    costs nine times as much as over-forecasting — which is exactly the trade the
+    costs nine times as much as over-forecasting. That is the trade the
     newsvendor calculation makes, so the model and the decision are scored the
     same way.
     """
@@ -102,7 +101,8 @@ def coverage(actual: np.ndarray, predicted: np.ndarray, quantile: float) -> floa
 
     This is the calibration check. If a 0.9-quantile forecast is only covering
     70% of days, the quantiles are too low and the service levels derived from
-    them will under-order — quietly, and in the direction that loses sales.
+    them will under-order. The error is quiet, and it is in the direction that
+    loses sales.
     """
     actual = np.asarray(actual, dtype=float)
     predicted = np.asarray(predicted, dtype=float)
@@ -198,9 +198,9 @@ def rolling_origin_backtest(
     """Refit at several cut-offs and predict the next horizon each time.
 
     Each fold trains only on data strictly before its cut-off and scores only the
-    horizon after it, so no fold can see its own answers. That is the property a
-    single holdout cannot give you, and it is why the reported WAPE is a range
-    across folds rather than one number — the spread is the honest part.
+    horizon after it, so no fold can see its own answers. A single holdout cannot
+    give you that, and it is why the reported WAPE is a range across folds rather
+    than one number. The spread is the honest part.
     """
     folds = folds or int(cfg.forecast.get("backtest_folds", 6))
     horizon = int(cfg.forecast.get("horizon_days", 14))
@@ -482,7 +482,7 @@ def _calibrate_quantiles(metrics: pd.DataFrame, backtest: pd.DataFrame) -> dict[
     That matters downstream. If the optimiser orders to the *nominal* 0.95
     quantile believing it is a 95% service level, it will actually run at 87% and
     lose sales it never sees. So the calibration is measured here, published, and
-    passed to the optimiser as the achieved service level — the plan is sized on
+    passed to the optimiser as the achieved service level. The plan is sized on
     what the model really delivers, not on what was asked for.
     """
     if backtest.empty:

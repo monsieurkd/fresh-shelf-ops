@@ -3,12 +3,12 @@
 {#-
   The store portfolio, with the risk attributes the rest of the project needs.
 
-  Kept deliberately thin. Store attributes that matter for waste are not the
+  Kept thin. Store attributes that matter for waste are not the
   usual retail ones (size, format, region) but the operational ones: how often
   disposals actually get scanned, and how systematically the store runs its
   markdown pass. Both are derived here from *observed behaviour in the data*
-  rather than from a config, because the whole point of measuring a store's
-  discipline is that the store does not self-report it.
+  rather than from a config, because measuring a store's discipline only works
+  if the store does not self-report it.
 
   `scan_compliance_observed` is the load-bearing one. It is the ratio of loss
   scans the store filed to the loss the ledger says it incurred, and it is what

@@ -1,16 +1,18 @@
 """One test per entry in `config/defect_catalogue.yml`.
 
-The claim this file makes is the whole point of simulating the source systems:
-**each defect the catalogue describes is one the pipeline actually survives.**
-A test here builds a small world containing the store the defect lives in,
-writes the landing zone, loads it, and compares the raw layer against
-`data/truth/*.parquet` — the sealed answer key the pipeline never reads.
+The point of simulating the source systems is to show that each catalogued
+defect is one the pipeline survives. A test here builds a small world containing
+the store the defect lives in, writes the landing zone, loads it, and compares
+the raw layer against `data/truth/*.parquet`, the sealed answer key the pipeline
+never reads.
 
-So each test has the same three beats:
-  1. inject (via the world + writer, using the catalogue's own parameters),
-  2. load (`Ingestor`),
-  3. assert the raw layer agrees with the truth, and that the defect was visible.
-If a defect is later "fixed" by silently coercing bad data to zero, these fail.
+Each test follows the same three steps:
+
+1. inject, using the world, the writer and the catalogue's own parameters
+2. load with `Ingestor`
+3. assert that the raw layer agrees with the truth and that the defect was visible
+
+If a defect is later "fixed" by coercing bad data to zero, these tests fail.
 """
 
 from __future__ import annotations
@@ -29,9 +31,8 @@ from fresh_shelf.ingest import Ingestor
 from fresh_shelf.landing.writer import write_landing
 from fresh_shelf.world import simulate
 
-# These tests generate a world and load it, so they belong to the slow tier —
-# `pytest -m "not slow"` must actually be fast, which it was not while nothing
-# carried the marker.
+# These tests generate a world and load it, so they carry the slow marker. The
+# fast tier has to stay fast, which it did not while these lacked it.
 pytestmark = pytest.mark.slow
 
 #: The stores the defect catalogue singles out. A world for these tests has to
@@ -88,7 +89,7 @@ def _loaded_files(files: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# D01 — the integration re-sends an extract after a gateway timeout
+# D01: the integration re-sends an extract after a gateway timeout
 # ---------------------------------------------------------------------------
 def test_d01_duplicate_redelivery_is_not_double_counted(defect_world, loaded):
     cfg, world, manifest = defect_world
@@ -117,7 +118,7 @@ def test_d01_duplicate_redelivery_is_not_double_counted(defect_world, loaded):
 
 
 # ---------------------------------------------------------------------------
-# D02 — the regional stores' extracts land a day late
+# D02: the regional stores' extracts land a day late
 # ---------------------------------------------------------------------------
 def test_d02_late_file_lands_in_its_business_partition(defect_world, loaded):
     cfg, world, _ = defect_world
@@ -125,7 +126,7 @@ def test_d02_late_file_lands_in_its_business_partition(defect_world, loaded):
 
     late = _loaded_files(files)
     late = late[late["lag_days"] > 0]
-    assert not late.empty, "no file was flagged late — D02 did not fire"
+    assert not late.empty, "no file was flagged late; D02 did not fire"
 
     for row in late.itertuples():
         assert row.lag_days == 1, f"{row.file_name} lagged {row.lag_days} days"
@@ -148,7 +149,7 @@ def test_d02_late_file_lands_in_its_business_partition(defect_world, loaded):
 
 
 # ---------------------------------------------------------------------------
-# D03 — a store-day that never arrives
+# D03: a store-day that never arrives
 # ---------------------------------------------------------------------------
 def test_d03_missing_store_day_is_reported_not_invented(defect_world, loaded):
     cfg, world, _ = defect_world
@@ -176,7 +177,7 @@ def test_d03_missing_store_day_is_reported_not_invented(defect_world, loaded):
     missing = raw_pairs.symmetric_difference(gap_pairs) & gap_pairs
     assert missing == gap_pairs, "an outage day was not fully absent from raw"
 
-    # And the gap is discoverable without the answer key — from the meta table.
+    # And the gap is discoverable without the answer key: the meta table records it.
     reported = con.execute(
         "SELECT count(*) FROM ops.ingest_files WHERE source = 'pos_sales' AND status = 'loaded'"
     ).fetchone()[0]
@@ -187,12 +188,12 @@ def test_d03_missing_store_day_is_reported_not_invented(defect_world, loaded):
         store_days = {d for d, s in raw_pairs if s == store}
         gap_days = {d for d, s in gap_pairs if s == store}
         assert len(store_days) > len(gap_days) * 5, (
-            f"{store} is missing suspiciously many days — the outage is being applied far too often"
+            f"{store} is missing suspiciously many days; the outage is being applied far too often"
         )
 
 
 # ---------------------------------------------------------------------------
-# D04 — the old firmware writes units as text with a decimal comma
+# D04: the old firmware writes units as text with a decimal comma
 # ---------------------------------------------------------------------------
 def test_d04_locale_text_units_are_normalised(defect_world, loaded):
     cfg, world, manifest = defect_world
@@ -214,7 +215,7 @@ def test_d04_locale_text_units_are_normalised(defect_world, loaded):
                 break
         if seen_comma_text:
             break
-    assert seen_comma_text, f"{store}'s units were written as plain numbers — D04 did not fire"
+    assert seen_comma_text, f"{store}'s units were written as plain numbers; D04 did not fire"
 
     # The raw layer carries a real number, and no data was lost on the way.
     truth = _truth(cfg, "truth_store_item_day")
@@ -227,7 +228,7 @@ def test_d04_locale_text_units_are_normalised(defect_world, loaded):
     worst = raw["units"].abs().max()
     truth_worst = truth_store["units_sold"].max()
     assert worst <= truth_worst * 1.05 + 1, (
-        f"largest raw unit count {worst} dwarfs the truth ({truth_worst}) — "
+        f"largest raw unit count {worst} dwarfs the truth ({truth_worst}); "
         "a decimal comma was read as a thousands separator"
     )
 
@@ -241,7 +242,7 @@ def _looks_numeric(value: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# D05 — one store exports money in integer cents
+# D05: one store exports money in integer cents
 # ---------------------------------------------------------------------------
 def test_d05_cents_file_is_normalised_or_quarantined(defect_world, loaded):
     cfg, world, manifest = defect_world
@@ -255,7 +256,7 @@ def test_d05_cents_file_is_normalised_or_quarantined(defect_world, loaded):
         for p in sorted(cfg.paths.landing_dir.glob(f"pos_sales/*/pos_{store}_*.csv"))
     ]
     cents_headers = [h for h in headers if "money_unit=cents" in h]
-    assert cents_headers, f"no cents file was written for {store} — D05 did not fire"
+    assert cents_headers, f"no cents file was written for {store}; D05 did not fire"
 
     # Amounts that came from a cents file are in dollars in raw, which we can
     # see directly: the column records what the file claimed.
@@ -267,7 +268,7 @@ def test_d05_cents_file_is_normalised_or_quarantined(defect_world, loaded):
     # hundreds of dollars on a fresh line.
     unit_value = from_cents["gross_sales"].abs() / from_cents["units"].abs().replace(0, 1)
     assert unit_value.max() <= 250.0, (
-        f"a cents amount landed as dollars (${unit_value.max():,.2f} per unit) — "
+        f"a cents amount landed as dollars (${unit_value.max():,.2f} per unit); "
         "the money-unit marker was ignored"
     )
 
@@ -282,7 +283,7 @@ def test_d05_cents_file_is_normalised_or_quarantined(defect_world, loaded):
 
 
 # ---------------------------------------------------------------------------
-# D06 — the handhelds write UTC, everything else writes Adelaide time
+# D06: the handhelds write UTC, everything else writes Adelaide time
 # ---------------------------------------------------------------------------
 def test_d06_utc_scans_land_on_the_right_adelaide_day(defect_world, loaded):
     cfg, world, _ = defect_world
@@ -301,7 +302,7 @@ def test_d06_utc_scans_land_on_the_right_adelaide_day(defect_world, loaded):
     utc_date = pd.to_datetime(raw["event_ts_utc"]).dt.date
     shifted = (utc_date != raw["business_date"]).sum()
     assert shifted > 0, (
-        "no scan's UTC date differed from its Adelaide date — the offset is not "
+        "no scan's UTC date differed from its Adelaide date; the offset is not "
         "being applied at all, so this test is not proving anything"
     )
 
@@ -311,7 +312,7 @@ def test_d06_utc_scans_land_on_the_right_adelaide_day(defect_world, loaded):
     if not evening.empty:
         late_utc = evening[evening["event_ts_utc"].dt.hour >= 10]
         assert not late_utc.empty, (
-            "no evening scan crossed into the next UTC day — the boundary the "
+            "no evening scan crossed into the next UTC day; the boundary the "
             "defect exists to test was not exercised"
         )
 
@@ -322,7 +323,7 @@ def test_d06_utc_scans_land_on_the_right_adelaide_day(defect_world, loaded):
 
 
 # ---------------------------------------------------------------------------
-# D07 — a fifth of disposals are never scanned (so recorded waste is a floor)
+# D07: a fifth of disposals are never scanned, so recorded waste is a floor
 # ---------------------------------------------------------------------------
 def test_d07_unscanned_disposals_make_recorded_waste_a_floor(defect_world, loaded):
     cfg, world, manifest = defect_world
@@ -333,12 +334,12 @@ def test_d07_unscanned_disposals_make_recorded_waste_a_floor(defect_world, loade
     scanned = loss_waste[loss_waste["was_scanned"]]
     unscanned = loss_waste[~loss_waste["was_scanned"]]
 
-    assert len(unscanned) > 0, "every disposal was scanned — D07 did not fire"
+    assert len(unscanned) > 0, "every disposal was scanned; D07 did not fire"
 
     # The catalogue declares the compliance it injects, so the test asserts
     # against that number rather than a band someone picked by eye. If the world
     # is calibrated differently the catalogue is wrong, and one of the two has to
-    # change — which is the point of pinning it here.
+    # change. That is why it is pinned here.
     declared = float(_catalogue()["D07"]["injection"]["base_compliance"])
     weekend_penalty = float(_catalogue()["D07"]["injection"]["weekend_penalty"])
     compliance = len(scanned) / len(loss_waste)
@@ -356,7 +357,7 @@ def test_d07_unscanned_disposals_make_recorded_waste_a_floor(defect_world, loade
     raw_qty = con.execute("SELECT sum(qty) FROM raw.waste_events").fetchone()[0]
     assert raw_qty == pytest.approx(truth[truth["was_scanned"]]["qty"].sum(), rel=TOL)
     assert raw_qty < truth["qty"].sum(), (
-        "the scan file accounts for every disposal — D07's whole point is that "
+        "the scan file accounts for every disposal; D07 exists because "
         "recorded waste understates real loss"
     )
 
@@ -367,7 +368,7 @@ def test_d07_unscanned_disposals_make_recorded_waste_a_floor(defect_world, loade
         truth[truth["loss_class"] == "waste"]["qty"].sum(), rel=0.02
     )
 
-    # Compliance varies by store — which is why the estate average is the wrong
+    # Compliance varies by store, which is why the estate average is the wrong
     # number to plan with.
     by_store = loss_waste.groupby("store_code")["was_scanned"].mean()
     assert by_store.max() - by_store.min() > 0.02, (
@@ -377,7 +378,7 @@ def test_d07_unscanned_disposals_make_recorded_waste_a_floor(defect_world, loade
 
 
 # ---------------------------------------------------------------------------
-# D08 — reason codes drift by firmware
+# D08: reason codes drift by firmware
 # ---------------------------------------------------------------------------
 def test_d08_reason_code_drift_is_captured_not_collapsed(defect_world, loaded):
     cfg, world, _ = defect_world
@@ -388,7 +389,7 @@ def test_d08_reason_code_drift_is_captured_not_collapsed(defect_world, loaded):
             "reason_code_raw"
         ]
     )
-    # The raw layer keeps what was filed, verbatim — mapping is the warehouse's
+    # The raw layer keeps what was filed, verbatim. Mapping is the warehouse's
     # job, and it needs the original to do it.
     assert len(raw_codes) >= 8, f"reason codes were collapsed on load: {sorted(raw_codes)}"
 
@@ -397,7 +398,7 @@ def test_d08_reason_code_drift_is_captured_not_collapsed(defect_world, loaded):
     # thing and arrive as four strings.
     expired_spellings = {c for c in raw_codes if "EXP" in c.upper()}
     assert len(expired_spellings) >= 3, (
-        f"expiry is spelled {sorted(expired_spellings)} — the firmware drift D08 "
+        f"expiry is spelled {sorted(expired_spellings)}; the firmware drift D08 "
         "models is not being simulated, so nothing is proving the mapping matters"
     )
     # Case and whitespace drift, not just alias drift.
@@ -420,7 +421,7 @@ def test_d08_reason_code_drift_is_captured_not_collapsed(defect_world, loaded):
 
 
 # ---------------------------------------------------------------------------
-# D09 — SKUs the item master does not carry
+# D09: SKUs the item master does not carry
 # ---------------------------------------------------------------------------
 def test_d09_unmapped_skus_are_quantified_not_dropped(defect_world, loaded):
     cfg, world, _ = defect_world
@@ -431,7 +432,7 @@ def test_d09_unmapped_skus_are_quantified_not_dropped(defect_world, loaded):
     unmapped = sold - known
 
     assert unmapped, (
-        "every SKU the till sold is in the item master — D09 did not fire, so "
+        "every SKU the till sold is in the item master; D09 did not fire, so "
         "nothing is proving the join does not drop rows"
     )
     # The rows are still there. An inner join downstream would silently lose
@@ -445,7 +446,7 @@ def test_d09_unmapped_skus_are_quantified_not_dropped(defect_world, loaded):
 
 
 # ---------------------------------------------------------------------------
-# D10 — voided and refunded lines arrive as negatives
+# D10: voided and refunded lines arrive as negatives
 # ---------------------------------------------------------------------------
 def test_d10_void_lines_are_preserved_and_nettable(defect_world, loaded):
     cfg, world, manifest = defect_world
@@ -454,7 +455,7 @@ def test_d10_void_lines_are_preserved_and_nettable(defect_world, loaded):
     negatives = con.execute(
         "SELECT count(*) FROM raw.pos_sales WHERE units < 0 OR gross_sales < 0"
     ).fetchone()[0]
-    assert negatives > 0, "no negative lines were landed — D10 did not fire"
+    assert negatives > 0, "no negative lines were landed; D10 did not fire"
 
     # Netting per store-day-SKU never goes negative: a negative net would mean
     # the void logic is wrong, not the data.
@@ -472,13 +473,13 @@ def test_d10_void_lines_are_preserved_and_nettable(defect_world, loaded):
     raw_units = con.execute("SELECT sum(units) FROM raw.pos_sales").fetchone()[0]
     truth_units = truth["units_sold"].sum()
     assert raw_units == pytest.approx(truth_units, rel=0.02), (
-        f"netted units {raw_units:,.0f} against truth {truth_units:,.0f} — "
+        f"netted units {raw_units:,.0f} against truth {truth_units:,.0f}; "
         "negatives were dropped instead of netted, or double counted"
     )
 
 
 # ---------------------------------------------------------------------------
-# D11 — counts are eyeballed, and pack items get counted in packs
+# D11: counts are eyeballed, and pack items get counted in packs
 # ---------------------------------------------------------------------------
 def test_d11_count_normalisation_removes_pack_error(defect_world, loaded):
     cfg, world, _ = defect_world
@@ -492,7 +493,7 @@ def test_d11_count_normalisation_removes_pack_error(defect_world, loaded):
 
     # The defect is real: some files claim units were counted in packs.
     assert (counts["unit_of_measure"] == "pack").any(), (
-        "no count was recorded in packs — D11 did not fire"
+        "no count was recorded in packs; D11 did not fire"
     )
 
     truth = _truth(cfg, "truth_store_item_day")
@@ -523,7 +524,7 @@ def test_d11_count_normalisation_removes_pack_error(defect_world, loaded):
 
 
 # ---------------------------------------------------------------------------
-# D12 — short and substituted deliveries
+# D12: short and substituted deliveries
 # ---------------------------------------------------------------------------
 def test_d12_delivery_fill_rate_and_life_at_delivery(defect_world, loaded):
     cfg, world, _ = defect_world
@@ -533,13 +534,13 @@ def test_d12_delivery_fill_rate_and_life_at_delivery(defect_world, loaded):
     assert not grn.empty
     assert pd.api.types.is_numeric_dtype(grn["qty_received"])
 
-    # The three quantities are kept separate — collapsing them loses the
+    # The three quantities are kept separate. Collapsing them loses the
     # difference between "we ordered less" and "the supplier let us down".
     assert {"qty_ordered", "qty_received", "qty_rejected"} <= set(grn.columns)
 
     # Short deliveries are real and common enough to be a planning input.
     shorts = grn[grn["qty_received"] < grn["qty_ordered"] - 1e-9]
-    assert len(shorts) > 50, f"only {len(shorts)} short lines — D12 did not fire"
+    assert len(shorts) > 50, f"only {len(shorts)} short lines; D12 did not fire"
     assert len(shorts) / len(grn) > 0.03
 
     # The *estate* fill rate nets out near 1.0, and that is correct, not a bug:
@@ -550,7 +551,7 @@ def test_d12_delivery_fill_rate_and_life_at_delivery(defect_world, loaded):
         lambda d: d["qty_received"].sum() / d["qty_ordered"].sum(), include_groups=False
     )
     assert per_supplier.min() < 0.99, (
-        "every supplier filled every order — reliability is not being applied"
+        "every supplier filled every order; reliability is not being applied"
     )
     assert per_supplier.max() - per_supplier.min() > 0.02, (
         "supplier fill rates are indistinguishable, so the reliability "
@@ -558,7 +559,7 @@ def test_d12_delivery_fill_rate_and_life_at_delivery(defect_world, loaded):
     )
 
     subs = grn[grn["was_substituted"]]
-    assert not subs.empty, "no substituted delivery — D12 did not fire"
+    assert not subs.empty, "no substituted delivery; D12 did not fire"
     # A substitution brings its own cost, which is why cost is per delivery line.
     assert subs["unit_cost"].nunique() > 1
 
@@ -571,7 +572,7 @@ def test_d12_delivery_fill_rate_and_life_at_delivery(defect_world, loaded):
 
 
 # ---------------------------------------------------------------------------
-# D13 — a printed markdown is not always honoured at the till
+# D13: a printed markdown is not always honoured at the till
 # ---------------------------------------------------------------------------
 def test_d13_markdown_erosion_uses_realised_discount(defect_world, loaded):
     cfg, world, _ = defect_world
@@ -583,7 +584,7 @@ def test_d13_markdown_erosion_uses_realised_discount(defect_world, loaded):
     # The defect: more was ticketed than was sold at the marked price.
     ticketed = marks["qty_ticketed"].sum()
     honoured = marks["qty_honoured"].sum()
-    assert honoured < ticketed, "every printed ticket was honoured — D13 did not fire"
+    assert honoured < ticketed, "every printed ticket was honoured; D13 did not fire"
     assert honoured / ticketed > 0.75, "the unhonoured share is too large to be the 9% defect"
 
     # Erosion is read from POS money (what the till actually rang), not from the
@@ -593,7 +594,7 @@ def test_d13_markdown_erosion_uses_realised_discount(defect_world, loaded):
     truth_erosion = truth["markdown_erosion_value"].sum()
     assert pos_discount == pytest.approx(truth_erosion, rel=0.02), (
         f"realised discount ${pos_discount:,.0f} against truth erosion "
-        f"${truth_erosion:,.0f} — erosion is not being read from the till"
+        f"${truth_erosion:,.0f}; erosion is not being read from the till"
     )
 
     # Tickets are used for depth and timing only, which is why they roll up to
@@ -603,14 +604,14 @@ def test_d13_markdown_erosion_uses_realised_discount(defect_world, loaded):
 
 
 # ---------------------------------------------------------------------------
-# Cross-cutting: the catalogue is honest
+# Cross-cutting: the catalogue is accurate
 # ---------------------------------------------------------------------------
 def test_a_shrinking_world_does_not_leave_the_previous_one_in_raw(tmp_path_factory):
     """Loading a narrower world must remove what the wider one left behind.
 
     This is a real hole that a small-world CI run exposed. The loader replaces
-    only the (day, store) pairs a file covers, which is what makes it idempotent —
-    but it never deleted a store that stopped appearing. Run the eight-store
+    only the (day, store) pairs a file covers, which is what makes it idempotent.
+    It never deleted a store that stopped appearing. Run the eight-store
     estate, then a two-store world, and `raw` held both, so the report was built
     on two worlds at once. The only visible symptom was a number quietly too big,
     which is the worst kind of symptom.
@@ -638,7 +639,7 @@ def test_a_shrinking_world_does_not_leave_the_previous_one_in_raw(tmp_path_facto
         assert len(wide_stores) == 4
 
         # Now the same warehouse, a narrower world. `make world` clears the
-        # landing zone before regenerating, so the test does the same — leaving
+        # landing zone before regenerating, so the test does the same. Leaving
         # the old files behind would be testing a different scenario (a source
         # that stopped sending while its files stayed put).
         narrow = wide.override(stores=2, seed=99)
@@ -652,7 +653,7 @@ def test_a_shrinking_world_does_not_leave_the_previous_one_in_raw(tmp_path_facto
         }
         assert narrow_stores <= wide_stores
         assert len(narrow_stores) == 2, (
-            f"raw still holds {sorted(narrow_stores)} — the previous world was "
+            f"raw still holds {sorted(narrow_stores)}; the previous world was "
             "not pruned, so the report would be built on two worlds at once"
         )
         # And the ledger must agree with the narrower world.
@@ -708,13 +709,13 @@ def test_pruning_is_scoped_and_does_not_truncate_history():
 def test_every_ingest_level_catalogue_entry_has_a_test_here():
     """The catalogue names a test for each defect; this makes that a fact.
 
-    Only the *ingest-level* defects are checked here — D01–D06 are defects in a
-    landed file, which is what this file proves. D07–D13 are defects in the
+    Only the ingest-level defects are checked here. D01 to D06 are defects in a
+    landed file, which is what this file proves. D07 to D13 are defects in the
     business meaning of the data (a scan that never happened, a printed ticket
     that was not honoured) and are only provable after the dbt models exist, so
-    they name tests in `tests/test_warehouse.py`. That split is deliberate: an
-    ingest test cannot prove the ledger reconciles, and a warehouse test cannot
-    prove a redelivery was de-duplicated.
+    they name tests in `tests/test_warehouse.py`. The split matters: an ingest
+    test cannot prove the ledger reconciles, and a warehouse test cannot prove a
+    redelivery was de-duplicated.
     """
     import re
 
@@ -740,7 +741,7 @@ def test_every_ingest_level_catalogue_entry_has_a_test_here():
 
 
 def test_warehouse_level_defects_name_warehouse_tests():
-    """D07–D13 must be proven where they can be: after the models exist."""
+    """D07 to D13 must be proven where they can be: after the models exist."""
     for code, defect in _catalogue().items():
         if code in {"D01", "D02", "D03", "D04", "D05", "D06"}:
             continue

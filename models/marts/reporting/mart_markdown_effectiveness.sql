@@ -7,14 +7,14 @@
   worth it". Three quantities make it answerable, and they are deliberately kept
   separate:
 
-    * `units_recovered`  — stock that sold under a markdown and would otherwise
-                           have expired. This is the whole point.
-    * `erosion_cost`     — the margin given away to move it.
-    * `avoided_waste_cost` — the cost of the stock that was saved from the bin,
-                           using each line's own standard cost.
-    * `net_benefit`      — recovered value minus erosion. A markdown that loses
-                           money is worse than a disposal, because it also costs
-                           the labour of printing and sticking.
+    * `units_recovered`: stock that sold under a markdown and would otherwise
+                          have expired. This is the point of the exercise.
+    * `erosion_cost`: the margin given away to move it.
+    * `avoided_waste_cost`: the cost of the stock saved from the bin, using
+                            each line's own standard cost.
+    * `net_benefit`: recovered value minus erosion. A markdown that loses
+                     money is worse than a disposal, because it also costs the
+                     labour of printing and sticking.
 
   `avoided_waste_cost` is an ESTIMATE and is labelled as one: it assumes stock
   that sold under a markdown would otherwise have been disposed of. Where

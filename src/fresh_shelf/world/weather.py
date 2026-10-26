@@ -1,16 +1,16 @@
 """Weather as a source feed.
 
 Every fresh department is a weather derivative: salad and berries in a
-heatwave, soup vegetables and roasts in a cold snap, and — the part that costs
-money — a 43C day shortens the life of everything on the chilled shelf, so the
-week after a heatwave is a waste week. The simulation therefore uses weather
-twice: as a demand driver (``heat_sensitivity``/``rain_sensitivity``) and as a
-spoilage driver.
+heatwave, soup vegetables and roasts in a cold snap, and, more expensively, a
+43C day shortens the life of everything on the chilled shelf, so the week after a
+heatwave is a waste week. The simulation therefore uses weather twice: as a
+demand driver (``heat_sensitivity``/``rain_sensitivity``) and as a spoilage
+driver.
 
 The series is Adelaide-shaped rather than random: a proper seasonal cycle, an
-autoregressive day-to-day carry-over, a wet winter, and a January heatwave —
-the kind of event an optimiser has to survive rather than an outlier to be
-smoothed away.
+autoregressive day-to-day carry-over, a wet winter, and a January heatwave. That
+is the kind of event an optimiser has to survive, not an outlier to be smoothed
+away.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ ADELAIDE_MEAN_MAX = [29.0, 29.0, 26.0, 22.0, 18.0, 15.0, 15.0, 16.0, 19.0, 22.0,
 ADELAIDE_RAIN_PROB = [0.10, 0.10, 0.14, 0.22, 0.32, 0.40, 0.42, 0.40, 0.32, 0.26, 0.20, 0.14]
 ADELAIDE_RAIN_MM = [18.0, 15.0, 22.0, 38.0, 60.0, 72.0, 75.0, 68.0, 55.0, 45.0, 32.0, 24.0]
 
-#: Store-level climate offsets (deg C) — the hills are cooler, the north warmer.
+#: Store-level climate offsets (deg C): the hills are cooler, the north warmer.
 STORE_TEMP_OFFSET = {
     "S01": 0.3,
     "S02": -0.6,

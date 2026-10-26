@@ -471,7 +471,7 @@ def status(as_of, days, stores, seed, verbose, assert_idempotent, as_json) -> No
             if len(collisions) or reused_checksums:
                 raise click.ClickException(
                     f"{len(collisions)} file(s) and {reused_checksums} checksum(s) were "
-                    "loaded more than once — the loader is not idempotent"
+                    "loaded more than once; the loader is not idempotent"
                 )
 
     if as_json:

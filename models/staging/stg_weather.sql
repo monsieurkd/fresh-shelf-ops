@@ -4,7 +4,7 @@
   Weather.
 
   The BOM drop includes the as-of day itself, which is a forecast rather than an
-  observation. That is deliberate and it is a trap: a naive join would let the
+  observation. That is a trap: a naive join would let the
   pipeline report trading performance for a day that has not finished. The
   `is_trading_day` flag below is what stops it.
 

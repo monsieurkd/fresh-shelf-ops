@@ -5,8 +5,7 @@ merchandising and store systems of record). Everything here is hand-authored to
 be plausible rather than sampled from a distribution: an eight-store South
 Australian group, a supply base that matches each department's real logistics
 (daily bread, three-times-a-week seafood, a produce DC that runs six days), and
-a range where shelf life — not price — is what decides whether an item can be
-waste or not.
+a range where shelf life, not price, decides whether an item can be waste.
 
 Numbers are per average store (``size_index`` 1.0) and per week; the simulation
 scales them by store size, day of week, season, weather and promotion.
@@ -298,7 +297,7 @@ class Item:
         """Fresh departments mark down anything perishable except hot food.
 
         Hot food (rotisserie chicken) is a same-day disposal with food-safety
-        constraints — it is disposed, never re-priced.
+        constraints. It is disposed, never re-priced.
         """
         return self.category != "Hot food"
 
@@ -434,7 +433,7 @@ def _stable_unit(store_code: str, sku: str) -> float:
     """A per-(store, line) index in [0, 1) that does not move between runs.
 
     ``hash()`` is salted per process, so using it here would give every store a
-    different local demand index on every run — the simulation would stop being
+    different local demand index on every run. The simulation would stop being
     reproducible, which is the one property the whole project rests on.
     """
     return (crc32(f"{store_code}:{sku}".encode()) % 10_000) / 10_000.0
@@ -465,7 +464,7 @@ def assortment_for(
     Range is not uniform: an Express store in Whyalla does not carry a
     $46/kg whole fish or the long-life long-tail, and the coastal stores sell
     far more seafood than the hills stores do. Modelling that matters because
-    range differences *are* the story in a fresh department — the waste comes
+    range differences *are* the story in a fresh department. The waste comes
     from the lines a store ranges but cannot turn over.
     """
     out: list[StoreItem] = []

@@ -6,11 +6,11 @@
   `waste_pressure_reason` is the operative column, because a line can be a
   problem for four different reasons and each has a different fix:
 
-    * Ordered too much   — deliveries outrun sales. Fix: forecast better.
-    * Too much cover     — the store holds several days of a 2-day product.
-    * Life at delivery   — the stock arrives already short of life (D12), which
-                           is a *supplier* conversation, not a store one.
-    * Slow seller        — it simply does not sell at that store. Fix: range.
+    * Ordered too much: deliveries outrun sales. Fix: forecast better.
+    * Too much cover: the store holds several days of a 2-day product.
+    * Life at delivery: the stock arrives already short of life (D12), which
+                        is a supplier conversation, not a store one.
+    * Slow seller: it simply does not sell at that store. Fix: range.
 
   Attributing a line to the right one is the difference between a report that
   says "you waste $40k in produce" and one that says what to do about it.

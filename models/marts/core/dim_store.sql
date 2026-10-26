@@ -4,7 +4,7 @@
   Store dimension.
 
   The operational attributes come from `int_store_portfolio`, which derives them
-  from observed behaviour rather than from a config — a store's scan compliance
+  from observed behaviour rather than from a config. A store's scan compliance
   and markdown discipline are measured, not self-reported.
 -#}
 select

@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# Defect catalogue — the messiness the source systems really produce.
+# Defect catalogue: the messiness the source systems really produce.
 #
 # This file is the single source of truth for BOTH sides of the seam:
 #   * `fresh_shelf.landing.writer` reads it to decide what to inject into the
@@ -22,7 +22,7 @@ defects:
     handling: >-
       Landing is content-addressed (sha256). A second file with the same
       checksum is recorded in `ingest_files` as status 'duplicate' and never
-      loaded twice — the raw table keeps exactly one copy of each store-day.
+      loaded twice. The raw table keeps exactly one copy of each store-day.
     test: tests/test_ingest_defects.py::test_d01_duplicate_redelivery_is_not_double_counted
 
   - code: D02
@@ -49,7 +49,7 @@ defects:
       makes "sales" quietly under-count.
     injection: { scope: estate, days: 2, stores_per_event: 1 }
     handling: >-
-      Not recoverable from source — the pipeline refuses to invent it. The gap
+      Not recoverable from source. The pipeline refuses to invent it. The gap
       is surfaced by the `pos_store_day_coverage` test (a store-day present in
       the store calendar but absent from POS) and by `mart_data_quality`, and
       the affected store-days are excluded from sell-through KPIs rather than
@@ -74,7 +74,7 @@ defects:
     source: pos_sales
     description: >-
       One store still exports money columns in integer cents. Same column name,
-      different unit — the classic silent 100x error.
+      different unit. This is the classic silent 100x error.
     injection: { scope: stores, stores: [S05], money_in_cents: true, from_offset_days: 0, to_offset_days: 61 }
     handling: >-
       A per-file `money_unit` header marker plus a plausibility bound
@@ -89,8 +89,8 @@ defects:
     description: >-
       Handheld loss scanners write UTC; every other source writes local
       Adelaide time. A 7pm disposal is logged as 09:30 the same day in winter
-      and 08:30 in summer — and around 14:30 UTC it crosses midnight, moving
-      the event to the wrong trading day.
+      and 08:30 in summer. Around 14:30 UTC it crosses midnight, moving the
+      event to the wrong trading day.
     injection: { scope: estate, tz: UTC }
     handling: >-
       Staging converts to Australia/Adelaide and derives `business_date` from
@@ -111,7 +111,7 @@ defects:
       Not a file defect: it is the reason recorded waste is a floor, not the
       truth. `int_stock_ledger` reconciles the ledger (receipts - sales -
       scanned disposals) against physical counts and publishes the residue as
-      unrecorded shrink at cost — with the assumption and its limits stated in
+      unrecorded shrink at cost. The assumption and its limits are stated in
       docs/DECISIONS.md (AD-07).
     test: tests/test_warehouse.py::test_unrecorded_shrink_bridges_the_ledger_residue
 

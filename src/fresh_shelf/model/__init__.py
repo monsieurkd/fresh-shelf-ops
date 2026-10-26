@@ -7,7 +7,7 @@ here:
 1. **Nothing may look at the future.** The demand model sees only data up to the
    day it is predicting, enforced by building features from a strictly lagged
    frame and by backtesting on rolling origins rather than a single holdout.
-   A leakage bug here would not raise an error — it would produce a beautiful
+   A leakage bug here would not raise an error. It would produce a beautiful
    forecast and a plan that fails in the store, which is worse.
 
 2. **The sealed truth is for tests, never for inputs.** `data/truth/*.parquet` is

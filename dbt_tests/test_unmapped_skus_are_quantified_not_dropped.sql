@@ -1,8 +1,8 @@
 -- D09: SKUs the item master does not carry must be quantified, not dropped.
 --
 -- The join to the item master is a LEFT join everywhere on purpose. An inner
--- join would silently delete real revenue — the tills know a seasonal line
--- before the master does — and the loss would be invisible because the report
+-- join would silently delete real revenue. The tills know a seasonal line
+-- before the master does, and the loss would be invisible because the report
 -- would simply cover a smaller population.
 --
 -- So this test asserts the opposite of "no unmapped SKUs": it asserts that

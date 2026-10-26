@@ -24,7 +24,7 @@
       expected closing vs the last physical count = the residue
 
   The residue is where unrecorded shrink lives. It is reported, not hidden, and
-  it is *bounded* by the count's own reliability — a count eyeballed to +/-3%
+  it is *bounded* by the count's own reliability. A count eyeballed to +/-3%
   cannot resolve a 1% loss, which is why the reconciliation carries the count
   error forward rather than pretending the closing number is exact.
 -#}
@@ -120,9 +120,9 @@ received as (
 -- cost of doing business; waste is what the project is trying to remove.
 --
 -- The scan's VALUE is computed at the item's standard cost rather than at a
--- cost reconstructed from the delivery history. That is a deliberate
--- simplification with a known direction: standard cost lags seasonal cost
--- movements, so a produce scan in a dear season is slightly under-valued.
+-- cost reconstructed from the delivery history. That is a simplification with a
+-- known direction: standard cost lags seasonal cost movements, so a produce scan
+-- in a dear season is slightly under-valued.
 scanned_loss as (
 
     select

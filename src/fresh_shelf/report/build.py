@@ -1,24 +1,21 @@
-"""Build the report: one self-contained HTML file, a Markdown mirror, metrics.json.
+"""Build the report: one self-contained HTML file, a Markdown mirror and metrics.json.
 
-The report's job is to state the dollars without overclaiming, so it leads with
-the things a reviewer would otherwise have to dig for rather than burying them:
+The page has to state the dollars without overclaiming, so it opens with four
+things a reviewer would otherwise have to dig out:
 
-1. **What the estate loses, in three separate numbers.** Markdown erosion,
-   recorded waste, and unrecorded shrink are different problems with different
-   fixes, and the page says so before it says anything else.
-2. **That recorded waste is a floor.** The scan file misses roughly a fifth of
-   disposals (D07), and the page shows the size of the gap rather than quoting
-   the scan total as the loss.
-3. **That the optimiser's own dollar accounting disagrees with the frontier.**
-   The net benefit comes out negative on this estate while the frontier still has
-   an interior optimum. That disagreement is on the page, in the summary, with
-   the reason — not smoothed over.
-4. **That the reconciliation residue is a bound.** It over-states true unscanned
-   loss several-fold because count error dominates, so the weighted estimate is
-   quoted with its confidence rather than the raw residue.
+1. What the estate loses, as three separate numbers. Markdown erosion, recorded
+   waste and unrecorded shrink have different fixes and are never added together.
+2. That recorded waste is a floor. The scan file misses about a fifth of
+   disposals (D07), and the page shows the size of the gap.
+3. That the optimiser's accounting and the frontier disagree. The net benefit is
+   negative on this estate while the frontier has an interior optimum. Both
+   numbers appear, with the reason.
+4. That the reconciliation residue is a bound. Count error dominates it, so the
+   page quotes the confidence-weighted estimate and shows the raw residue next
+   to it.
 
-Everything is generated from the warehouse. No number here is typed by hand,
-which is why the report can be regenerated on any world and stays honest.
+Every number comes from the warehouse. Nothing is typed by hand, which is why the
+report can be regenerated on any world.
 """
 
 from __future__ import annotations
@@ -40,8 +37,8 @@ from . import charts
 
 log = logging.getLogger(__name__)
 
-#: How many rows a table shows before it is truncated. Chosen so the page stays
-#: readable while still listing every line that matters at this estate's size.
+#: Rows per table before truncation. Enough to list every line that matters at
+#: this estate's size without turning the page into a spreadsheet.
 TOP_N = 15
 
 
@@ -80,8 +77,7 @@ def _scalar(con: duckdb.DuckDBPyConnection, sql: str, default: Any = 0) -> Any:
 def collect(cfg: Config, con: duckdb.DuckDBPyConnection) -> ReportData:
     """Read every number the report needs, in one place.
 
-    Centralised deliberately: a number that is fetched inline in the template is
-    a number nobody can test, and this report is meant to be checkable.
+    A number fetched inline in the template is a number nobody can test.
     """
     fct = "marts.fct_store_item_day"
 
@@ -98,7 +94,7 @@ def collect(cfg: Config, con: duckdb.DuckDBPyConnection) -> ReportData:
         ),
         "recorded_waste_value": float(_scalar(con, f"select sum(recorded_waste_cost) from {fct}")),
         "prep_loss_value": float(_scalar(con, f"select sum(prep_loss_cost) from {fct}")),
-        # Weighted, and reported with its confidence: the raw residue overstates
+        # Weighted, and shown with its confidence. The raw residue overstates
         # unscanned loss several-fold because count error dominates it.
         "unrecorded_shrink_value": float(
             _scalar(
@@ -130,8 +126,7 @@ def collect(cfg: Config, con: duckdb.DuckDBPyConnection) -> ReportData:
             _scalar(con, f"select count(distinct business_date) from {fct} where is_pos_gap")
         ),
     }
-    # The four ratios the summary quotes. Computed here rather than in the
-    # template so they can be asserted in tests.
+    # The four ratios the summary quotes, computed here so tests can assert them.
     sales = headline["sales_value"] or 1.0
     headline["waste_pct_of_sales"] = 100.0 * headline["recorded_waste_value"] / sales
     headline["markdown_pct_of_sales"] = 100.0 * headline["markdown_erosion_value"] / sales
@@ -261,10 +256,9 @@ def collect(cfg: Config, con: duckdb.DuckDBPyConnection) -> ReportData:
     if latest.exists():
         run_manifest = json.loads(latest.read_text())
 
-    # The subtitle is derived from the data, not read from config: a hardcoded
-    # "eight stores, 12 months" is wrong the moment the report is generated on a
-    # smaller world, and a report whose own header misstates its scope undermines
-    # every number under it.
+    # The subtitle comes from the data, not from config. A hardcoded "eight
+    # stores, 12 months" is wrong on a smaller world, and a header that misstates
+    # its scope undermines every number below it.
     window_start = query_df(con, "select min(business_date) as d from marts.fct_store_item_day")[
         "d"
     ].iloc[0]
@@ -302,14 +296,12 @@ def collect(cfg: Config, con: duckdb.DuckDBPyConnection) -> ReportData:
 # Rendering helpers
 # ---------------------------------------------------------------------------
 def _table(df: pd.DataFrame, columns: dict[str, str] | None = None, *, money: tuple = ()) -> str:
-    """A table with named columns.
+    """A table with named column labels.
 
-    Column labels come from the caller so the page can say "waste, $ (cost)"
-    rather than repeating the warehouse's snake_case. Numbers are formatted with
-    thousands separators everywhere, which is what readable money and readable
-    counts both need — so there is no separate money branch to get wrong. (The
-    `money` parameter is kept for call-site readability even though the formatting
-    is uniform.)
+    Labels come from the caller so the page can say "Waste $ (cost)" instead of
+    the warehouse's snake_case. Numbers get thousands separators, which reads
+    correctly for both money and counts. The `money` parameter is kept for
+    call-site readability even though the formatting is uniform.
     """
     del money
     if df.empty:
@@ -329,7 +321,7 @@ def _table(df: pd.DataFrame, columns: dict[str, str] | None = None, *, money: tu
         for name in frame.columns:
             value = record[name]
             if value is None:
-                text = "—"
+                text = "n/a"
             elif isinstance(value, float):
                 text = f"{value:,.2f}"
             else:
@@ -360,8 +352,8 @@ def _stat(label: str, value: str, note: str = "", tone: str = "") -> str:
 # The report itself
 # ---------------------------------------------------------------------------
 def render(data: ReportData, cfg: Config) -> str:
-    """Fill the template. Charts and tables are built here, not in the template,
-    so a missing section degrades to a sentence rather than to a broken page."""
+    """Fill the template. Charts and tables are built here, so a missing section
+    becomes a sentence rather than a broken page."""
     from jinja2 import Environment, FileSystemLoader, select_autoescape
 
     env = Environment(
@@ -405,10 +397,10 @@ def render(data: ReportData, cfg: Config) -> str:
     shrink_note = (
         '<div class="note note--caution"><strong>Read the shrink figure carefully.</strong> '
         f"The raw ledger residue over this period is {_money(headline['unrecorded_shrink_raw_residue'])}, "
-        "which is several times the true unscanned loss — most of it is physical-count error, because a "
-        "count eyeballed to ±3% cannot resolve a 1% loss. The figure above is that residue weighted by its "
-        "own confidence. Neither number is &ldquo;shrink&rdquo; in the loss-prevention sense; both are bounds "
-        "on loss the records do not explain.</div>"
+        "several times the true unscanned loss. Most of it is physical-count error: a count eyeballed "
+        "to plus or minus 3% cannot resolve a 1% loss. The figure above weights that residue by its "
+        "own confidence. Neither number is shrink in the loss-prevention sense. Both are bounds on "
+        "loss the records do not explain.</div>"
     )
 
     # --- department chart ---------------------------------------------------
@@ -420,8 +412,8 @@ def render(data: ReportData, cfg: Config) -> str:
             title="Recorded waste against markdown erosion, by department",
             desc=(
                 "Stacked bars per department showing the cost of stock thrown away and the margin "
-                "given away to sell stock in time. The balance between the two differs sharply by "
-                "department: produce and seafood lose to disposal, bakery and dairy to discounting."
+                "given away to sell it in time. The balance differs sharply by department: produce "
+                "and seafood lose to disposal, bakery and dairy to discounting."
             ),
         )
     else:
@@ -507,10 +499,10 @@ def render(data: ReportData, cfg: Config) -> str:
                 '<div class="note"><strong>The optimum is interior, and that is the finding.</strong> '
                 f"It sits at a service level of {float(row['service_level']):.2f}, where waste costs "
                 f"{_money(float(row['expected_waste_cost']))} and lost margin "
-                f"{_money(float(row['expected_lost_margin']))} — a total of "
-                f"{_money(float(row['total_cost']))}. Neither ordering to a blanket 95% service nor "
-                "starving the shelf is right; the balance point is a property of each line's margin "
-                "against its cost price, which is why it is computed per line.</div>"
+                f"{_money(float(row['expected_lost_margin']))}, a total of "
+                f"{_money(float(row['total_cost']))}. Neither a blanket 95% service level nor starving "
+                "the shelf is right. The balance point depends on each line's margin against its cost "
+                "price, which is why it is computed per line.</div>"
             )
 
     # --- impact -------------------------------------------------------------
@@ -533,17 +525,17 @@ def render(data: ReportData, cfg: Config) -> str:
             )
         else:
             reconciliation_note = (
-                '<div class="note note--alert"><strong>The two methods disagree, and both are on this page '
-                "deliberately.</strong> The frontier has an interior optimum at a service level of "
-                f"{optimum:.2f}, so the trade-off is real and the plan is directionally sound. But the plan's "
-                f"own component accounting nets to {_money(net)} — a loss — because on this estate waste is a "
-                "small share of sales while margin is a large one, so every unit no longer ordered gives up "
-                "far more margin than the waste it avoids. "
-                f"The recommended plan averages a service level {gap:.2f} above the unconstrained optimum, "
-                "which is the price of pack sizes and shelf-life caps: you cannot order three-quarters of a "
-                "tray. The honest conclusion is that <em>ordering down is not the win here</em> — the gains "
-                "are in markdown timing and in the lines whose cover genuinely exceeds their shelf life. "
-                "A deployment should negotiate the gap between the economics and the operation, not assume "
+                '<div class="note note--alert"><strong>The two methods disagree, and both are shown '
+                "here.</strong> The frontier has an interior optimum at a service level of "
+                f"{optimum:.2f}, so the trade-off is real and the plan is directionally sound. The "
+                f"plan's own component accounting nets to {_money(net)}, a loss, because waste is a "
+                "small share of sales while margin is large. Every unit no longer ordered gives up far "
+                "more margin than the waste it avoids. "
+                f"The recommended plan averages a service level {gap:.2f} above the unconstrained "
+                "optimum, which is the cost of pack sizes and shelf-life caps. You cannot order "
+                "three-quarters of a tray. Ordering down is not the win here. The gains are in markdown "
+                "timing and in the lines whose cover genuinely exceeds their shelf life. A deployment "
+                "should negotiate the gap between the economics and the operation rather than assume "
                 "it away.</div>"
             )
 
@@ -570,17 +562,17 @@ def render(data: ReportData, cfg: Config) -> str:
             title="Requested quantile against measured coverage",
             desc=(
                 "Each point plots the quantile the model was asked for against the share of outcomes "
-                "that actually fell below it. Points below the dashed diagonal are quantiles the model "
-                "does not fully deliver, and the shortfall is what the ordering plan compensates for."
+                "that fell below it. Points below the dashed diagonal are quantiles the model does "
+                "not fully deliver. The shortfall is what the ordering plan compensates for."
             ),
         )
         shortfalls = data.calibration["coverage_shortfall"].astype(float)
         worst = float(shortfalls.max())
         calibration_note = (
             '<div class="note"><strong>The quantiles are calibrated but conservative.</strong> '
-            "Coverage rises monotonically with the requested quantile, which is the property that matters — "
-            f"but the top quantile falls short by {worst:.2f}. A plan that ordered to the nominal figure "
-            "believing it was a true service level would under-order, so the achieved coverage is measured "
+            "Coverage rises monotonically with the requested quantile, which is what matters, but the "
+            f"top quantile falls short by {worst:.2f}. A plan that ordered to the nominal figure, "
+            "believing it was a true service level, would under-order. The achieved coverage is measured "
             "in the backtest and passed to the optimiser rather than assumed.</div>"
         )
     else:
@@ -642,9 +634,9 @@ def render(data: ReportData, cfg: Config) -> str:
 
 
 def render_markdown(data: ReportData, cfg: Config) -> str:
-    """The same findings as Markdown, for people who read reports in a terminal
-    or a git diff. Deliberately not a full mirror: the numbers that carry the
-    argument are repeated, and the charts become sentences."""
+    """The same findings as Markdown, for a terminal or a git diff. Not a full
+    mirror: the numbers that carry the argument are repeated and the charts
+    become sentences."""
     headline = data.headline
     lines: list[str] = []
     lines.append(f"# {cfg.report_cfg.get('title', 'Fresh loss report')}")
@@ -666,7 +658,7 @@ def render_markdown(data: ReportData, cfg: Config) -> str:
     )
     lines.append(
         f"| Recorded waste | {_money(headline['recorded_waste_value'])} | at cost; "
-        f"{_pct(headline['waste_pct_of_sales'])} of sales — a floor, not the loss |"
+        f"{_pct(headline['waste_pct_of_sales'])} of sales. A floor, not the loss |"
     )
     lines.append(
         f"| Markdown erosion | {_money(headline['markdown_erosion_value'])} | at margin; "
@@ -679,8 +671,8 @@ def render_markdown(data: ReportData, cfg: Config) -> str:
     )
     lines.append("")
     lines.append(
-        f"> Waste is a small share of sales ({_pct(headline['waste_pct_of_sales'])}) while margin is a large "
-        f"one ({_pct(headline['margin_pct_of_sales'])}). A unit not ordered therefore gives up far more "
+        f"> Waste is a small share of sales ({_pct(headline['waste_pct_of_sales'])}) and margin is a "
+        f"large one ({_pct(headline['margin_pct_of_sales'])}). A unit not ordered gives up far more "
         "margin than the waste it avoids, which shapes every recommendation below."
     )
     lines.append("")
@@ -708,8 +700,8 @@ def render_markdown(data: ReportData, cfg: Config) -> str:
                 f"The optimum sits at a service level of **{float(row['service_level']):.2f}**, where waste "
                 f"costs {_money(float(row['expected_waste_cost']))} and lost margin costs "
                 f"{_money(float(row['expected_lost_margin']))}, a total of "
-                f"{_money(float(row['total_cost']))}. Neither a blanket high service level nor starving the "
-                "shelf is right; the balance is a property of each line."
+                f"{_money(float(row['total_cost']))}. Neither a blanket high service level nor starving "
+                "the shelf is right. The balance is a property of each line."
             )
             lines.append("")
 
@@ -724,14 +716,14 @@ def render_markdown(data: ReportData, cfg: Config) -> str:
             )
         else:
             lines.append(
-                f"**The two methods disagree, and both are shown deliberately.** The frontier has an interior "
+                f"**The two methods disagree, and both are shown.** The frontier has an interior "
                 f"optimum at a service level of {float(frame.get('frontier_optimum_service_level', 0)):.2f}, so "
-                "the trade-off is real. But the plan's own component accounting nets to "
-                f"**{_money(float(frame.get('impact_net_benefit', 0)))}** — a loss — because waste is a small "
-                "share of sales while margin is a large one. The recommended plan averages a service level "
+                "the trade-off is real. The plan's own component accounting nets to "
+                f"**{_money(float(frame.get('impact_net_benefit', 0)))}**, a loss, because waste is a small "
+                "share of sales while margin is large. The recommended plan averages a service level "
                 f"{float(frame.get('service_level_gap', 0)):.2f} above the unconstrained optimum, which is the "
-                "price of pack sizes and shelf-life caps. On this estate ordering down is not the win; markdown "
-                "timing and the lines whose cover exceeds their shelf life are."
+                "cost of pack sizes and shelf-life caps. Ordering down is not the win on this estate. "
+                "Markdown timing and the lines whose cover exceeds their shelf life are."
             )
         lines.append("")
 
@@ -757,12 +749,12 @@ def render_markdown(data: ReportData, cfg: Config) -> str:
     lines.append("## Caveats")
     lines.append("")
     for caveat in (
-        "Recorded waste is a floor: roughly a fifth of disposals are never scanned.",
+        "Recorded waste is a floor: about a fifth of disposals are never scanned.",
         "Unrecorded shrink is a bound dominated by physical-count error, not a measurement of theft.",
-        "The backtest has perfect future weather, which flatters it against any real deployment.",
+        "The backtest has perfect future weather, which flatters it against a real deployment.",
         "Markdown response is estimated from non-random history, so the optimiser under-marks-down slightly.",
         "The ordering baseline is reconstructed from delivery history, not observed as placed orders.",
-        "The estate is simulated; the pipeline, reconciliation and decision logic are not.",
+        "The estate is simulated. The pipeline, reconciliation and decision logic are not.",
     ):
         lines.append(f"- {caveat}")
     lines.append("")

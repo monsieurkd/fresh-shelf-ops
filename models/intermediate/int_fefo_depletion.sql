@@ -5,8 +5,8 @@
 
   The ledger says what happened to *quantities*. This says what happened to
   *life*, and the difference matters because two stores can waste the same
-  number of units for opposite reasons — one because it bought too much, one
-  because it bought the same amount too late.
+  number of units for opposite reasons. One bought too much, the other bought
+  the same amount too late.
 
   The model is a FIFO queue per store-item over the deliveries in the window,
   advanced one day at a time. Sales consume the earliest-expiring stock first

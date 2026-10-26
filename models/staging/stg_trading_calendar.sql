@@ -3,15 +3,15 @@
 {#-
   The trading calendar, from the store system's own feed.
 
-  This model deliberately reads the *landed* calendar rather than any file in
-  `data/truth`. That distinction is the whole point of the project: a warehouse
+  This model reads the *landed* calendar rather than any file in
+  `data/truth`. That distinction matters: a warehouse
   that checks itself against the simulator's answer key is not measuring
   anything. Every number here has to come from something a real source system
   would have published.
 
   The model is what makes D03 visible. The cross product of (store, trading day)
   is the set of store-days a complete feed *should* contain, so a coverage gap
-  is the difference between this and what POS actually delivered — and it is
+  is the difference between this and what POS actually delivered. It is
   computable without anyone telling the pipeline a file went missing.
 -#}
 select

@@ -1,37 +1,36 @@
 """The optimiser: how much to order, and when to mark down.
 
-Two decisions, deliberately separated because they trade off against different
-things and are made at different times of day:
+These are two decisions, made at different times of day and against different
+trade-offs.
 
-**Replenishment** is a newsvendor problem. Order to a quantile of demand, where
-the quantile is set by the ratio of what it costs to be short against what it
-costs to be long:
+Replenishment is a newsvendor problem. Order to a quantile of demand, where the
+quantile comes from the ratio of the cost of being short to the cost of being
+long:
 
     critical ratio = margin lost per unit short
                      ------------------------------------------------
                      margin lost per unit short + cost lost per unit wasted
 
-A line with a 60% margin and a 100% cost of waste has a critical ratio of about
-0.38 — you should under-order it. A line with a thin margin and a cheap disposal
-has a ratio near 0.9 — you should over-order it. That is the whole reason a
-single "service level" for the estate is wrong, and why this is computed per
-line rather than set by policy.
+A line with a 60% margin and a 100% cost of waste has a critical ratio around
+0.38, so it should be under-ordered. A line with a thin margin and a cheap
+disposal has a ratio near 0.9 and should be over-ordered. That is why a single
+estate-wide service level is wrong, and why this is computed per line.
 
-**Markdown** is a timing problem, and it is solved as one: a small dynamic
-program over (stock remaining, days of life left) that asks, each day, whether
-the expected return from cutting the price now beats waiting. Marking down too
-early gives away margin you did not need to; too late and the stock expires. The
-optimal moment is not "the last day" — it depends on how much is left, how many
-days remain, and how responsive the line is to a discount.
+Markdown is a timing problem and is solved as one. A small dynamic program over
+(stock remaining, days of life left) asks each day whether the expected return
+from cutting the price now beats waiting. Marking down early gives away margin
+that did not need to be given; marking down late leaves stock to expire. The
+optimal moment is not the last day. It depends on how much is left, how many days
+remain, and how responsive the line is to a discount.
 
-Two constraints keep this honest:
+Two constraints keep the result usable:
 
-* Service levels are capped by the forecast's *measured* coverage, not its
-  nominal quantile. On this estate the q0.95 forecast covers ~0.86, so ordering
-  to the nominal figure would silently run a store at 86% service.
-* The recommended order quantity is compared against what the estate actually
-  ordered, so the benefit is a difference between two concrete plans rather than
-  against a theoretical optimum nobody could operate.
+* Service levels are capped by the forecast's measured coverage, not its nominal
+  quantile. On this estate the q0.95 forecast covers about 0.86, so ordering to
+  the nominal figure would run a store at 86% service.
+* The recommended order is compared with what the estate actually ordered, so the
+  benefit is a difference between two concrete plans rather than against a
+  theoretical optimum nobody could operate.
 """
 
 from __future__ import annotations
@@ -49,9 +48,9 @@ from ..db import ANALYTICS_SCHEMA, query_df, replace_table
 
 log = logging.getLogger(__name__)
 
-#: How far past the item's shelf life a recommended order is allowed to cover.
-#: Cover beyond life is arithmetically guaranteed waste, so the plan caps it —
-#: this single constraint is usually the largest waste reduction available.
+#: How far past the item's shelf life a recommended order may cover. Cover beyond
+#: life is guaranteed waste, so the plan caps it. This constraint usually produces
+#: the largest waste reduction available.
 COVER_SHELF_LIFE_BUFFER = 1.0
 
 
@@ -150,8 +149,8 @@ def build_replenishment_plan(
 
     # Only the columns the forecast does not already carry. Merging the whole
     # item row would duplicate shelf_life_days, retail_price and the rest, and
-    # pandas would silently suffix them — leaving the originals in place and the
-    # duplicates unused, which is a quiet way to read the wrong column.
+    # pandas would silently suffix them. That leaves the originals in place and
+    # the duplicates unused, which is a quiet way to read the wrong column.
     item_columns = [
         "sku",
         "standard_cost",
@@ -191,8 +190,8 @@ def build_replenishment_plan(
     # ---- the forecast quantile -------------------------------------------
     # The published quantile columns are `p50`/`p90`/`p95`. Matching on a bare
     # "p" prefix would also swallow `pack_size`, which is how this line first
-    # shipped — a reminder that a loose pattern over column names is a parsing
-    # bug waiting for the next column.
+    # shipped. A loose pattern over column names is a parsing bug waiting for the
+    # next column.
     quantile_pattern = re.compile(r"^p(\d{1,2})$")
     available = sorted(
         int(m.group(1)) / 100 for c in frame.columns if (m := quantile_pattern.match(c))
@@ -209,7 +208,7 @@ def build_replenishment_plan(
     # ---- the two order quantities ----------------------------------------
     #
     # Unit discipline is the trap here, and this got it wrong in both directions
-    # before landing correctly. `forecast_qty` is the forecast for ONE day — the
+    # before landing correctly. `forecast_qty` is the forecast for one day. The
     # forecast grid carries a horizon of rows, one per future date, each holding
     # that date's projection. `units_ma_7` is likewise a mean of daily units.
     # Neither is a horizon total, so neither may be divided by the horizon.
@@ -225,19 +224,19 @@ def build_replenishment_plan(
     frame["baseline_daily_qty"] = frame["units_ma_7"].fillna(frame["forecast_daily_qty"])
 
     # What the estate does today: cover the delivery gap at average daily sales,
-    # biased up, rounded to the pack. This reconstructs the order-up-to habit the
-    # stores actually run, from observed history rather than from an assumption —
-    # so the comparison is against the real baseline, not a straw man.
+    # biased up and rounded to the pack. This reconstructs the order-up-to habit
+    # the stores actually run, from observed history. The comparison is then
+    # against the real baseline rather than a straw man.
     frame["baseline_order_qty"] = _rounded_pack(
         frame, frame["baseline_daily_qty"] * frame["days_of_cover"] * 1.15
     )
     # The newsvendor quantity: the chosen quantile, for the same cover period.
     #
-    # The cover is capped by shelf life, but only where shelf life is *shorter*
-    # than the delivery gap — that is the case the cap exists for, because cover
-    # beyond life is arithmetically guaranteed waste. A line that lives 21 days
-    # and is delivered weekly does not need its cover cut to 22 days; that would
-    # be a change nobody asked for.
+    # The cover is capped by shelf life, but only where shelf life is shorter
+    # than the delivery gap. That is the case the cap exists for, because cover
+    # beyond life is guaranteed waste. A line that lives 21 days and is delivered
+    # weekly does not need its cover cut to 22 days; that would be a change
+    # nobody asked for.
     effective_cover = frame[["days_of_cover", "shelf_life_days"]].min(axis=1)
     frame["effective_cover_days"] = effective_cover
     frame["is_cover_capped"] = effective_cover < frame["days_of_cover"]
@@ -427,7 +426,7 @@ def estimate_elasticity(
     """Discount response per store-item, estimated from what markdowns achieved.
 
     The estimator is a shrinkage-regularised mean of the observed lift at each
-    depth, pooled toward a prior. It is deliberately simple and it says so:
+    depth, pooled toward a prior. It is simple, and it says so:
 
     * A line with plenty of markdown history gets its own estimate.
     * A line with little history is pulled toward the prior, because ten
@@ -435,10 +434,10 @@ def estimate_elasticity(
     * The prior is a config value, not a fitted quantity, so the amount of
       shrinkage is visible and arguable rather than buried in a hyper-parameter.
 
-    The known bias, stated rather than hidden: markdowns are *not* randomly
-    assigned — a store marks down stock it expects to struggle — so this
-    under-states the response, and the optimiser therefore under-marks-down
-    slightly. Fixing that needs an experiment, not a better estimator.
+    The known bias: markdowns are not randomly assigned. A store marks down the
+    stock it expects to struggle, so this understates the response and the
+    optimiser marks down slightly too little. Fixing that needs an experiment,
+    not a better estimator.
     """
     prior = float(cfg.optimise.get("elasticity_prior", 0.02))
     lo, hi = cfg.optimise.get("elasticity_bounds", [0.002, 0.09])
@@ -533,7 +532,7 @@ def build_markdown_plan(
     )
     frame["optimal_markdown_pct"] = depth
     frame["expected_value_at_optimum"] = value
-    # The alternative to marking down is not "full price" — it is "keep it at
+    # The alternative to marking down is not "full price". It is "keep it at
     # full price and then bin it". So the comparison is against a policy of no
     # markdown at all, valued the same way.
     no_md_depth, no_md_value = optimal_markdown_policy(
@@ -601,9 +600,9 @@ def waste_revenue_frontier(plan: pd.DataFrame) -> pd.DataFrame:
     is smallest, and the curve is what lets a manager see *why* a line should not
     be ordered to 95% service just because it can be.
 
-    Both sides are modelled explicitly, because a frontier where one axis is
-    always zero is not a frontier — it is a line, and it would let the report
-    claim an optimum that does not exist:
+    Both sides are modelled explicitly. A frontier where one axis is always zero
+    is not a frontier; it is a line, and it would let the report claim an optimum
+    that does not exist:
 
     * Waste appears once the order exceeds what the shelf can sell, which happens
       above roughly one cover period of demand.
@@ -623,10 +622,10 @@ def waste_revenue_frontier(plan: pd.DataFrame) -> pd.DataFrame:
     # shortage and a genuine surplus occur inside the range.
     #
     # Demand is treated as uncertain, not as a known quantity. With certain
-    # demand the curve is a sharp V — every unit is either sold or wasted — and
-    # it would understate waste at *every* order level, because the reason a
-    # fresh department wastes stock is that demand is a distribution and the
-    # order is a number. The spread comes from what the estate actually shows.
+    # demand the curve is a sharp V: every unit is either sold or wasted. That
+    # would understate waste at every order level, because a fresh department
+    # wastes stock when demand is a distribution and the order is a single
+    # number. The spread comes from what the estate actually shows.
     demand = daily * cover
     spread = plan["volatility_28"].fillna(0.35).clip(0.10, 1.0).to_numpy(dtype=float)
 
@@ -664,8 +663,8 @@ def waste_revenue_frontier(plan: pd.DataFrame) -> pd.DataFrame:
         best_idx = frame["total_cost"].idxmin()
         frame["is_optimal"] = frame.index == best_idx
         # Where the recommended plan itself sits on the curve, derived from the
-        # ratio its own quantities imply — so the report can show the estate
-        # where it is being asked to stand, not only where the minimum is.
+        # ratio its own quantities imply. The report can then show where the
+        # estate is being asked to stand, not only where the minimum is.
         recommended_ratio = float(
             (
                 plan["recommended_order_qty"]
@@ -685,20 +684,19 @@ def quantify_impact(
 
     Three components, each measured against what the estate actually did:
 
-    * **Waste avoided** — the recommended order replaces the baseline order for
-      lines the baseline over-covers, valued at cost. Only the share of the
-      reduction that would genuinely have been wasted counts, which is what the
-      cover ratio estimates.
-    * **Lost margin recovered** — lines the baseline under-covers, valued at
-      margin. Ordering the right quantity is worth money in *both* directions,
-      and a plan that only talks about waste is half a plan.
-    * **Markdown improvement** — the modelled benefit of timing markdowns well,
-      less the erosion risk of cutting stock that would have sold anyway.
+    * Waste avoided: the recommended order replaces the baseline order for lines
+      the baseline over-covers, valued at cost. Only the share of the reduction
+      that would genuinely have been wasted counts, which is what the cover ratio
+      estimates.
+    * Lost margin recovered: lines the baseline under-covers, valued at margin.
+      Ordering the right quantity is worth money in both directions, and a plan
+      that only talks about waste is half a plan.
+    * Markdown improvement: the modelled benefit of timing markdowns well, less
+      the erosion risk of cutting stock that would have sold anyway.
 
     Each row carries its own `basis` so the report can state how every figure was
-    derived. The conservatism is deliberate: recoveries are discounted rather
-    than claimed in full, because a plan that overstates its own benefit is worse
-    than one that understates it.
+    derived. Recoveries are discounted rather than claimed in full, because a plan
+    that overstates its own benefit is worse than one that understates it.
     """
     if plan.empty:
         return pd.DataFrame()
@@ -716,8 +714,8 @@ def quantify_impact(
     # Of the units no longer ordered, only the share that would have been binned
     # is a saving; the rest would have sold, and cutting them gives up margin. But
     # a customer who finds a line sold out often buys something else on the same
-    # visit, so not all of that margin is truly lost either — and the same
-    # reasoning applies in reverse to the units *added*.
+    # visit, so not all of that margin is truly lost either. The same reasoning
+    # applies in reverse to the units *added*.
     #
     # An earlier version discounted the recovery side to 40% while charging the
     # loss side in full. That is not conservatism; it is a thumb on the scale that
@@ -729,7 +727,7 @@ def quantify_impact(
     #   savings are positive, costs are negative, and every term below already
     #   carries its sign. `reduction` is <= 0 and `increase` is >= 0, so each
     #   expression is written to land in the right direction rather than relying
-    #   on a subtraction at the end — which is where this first went wrong.
+    #   on a subtraction at the end. That is where this first went wrong.
     units_cut = -reduction  # positive magnitude of the cut
     units_added = increase  # positive magnitude of the add
 
@@ -767,9 +765,9 @@ def quantify_impact(
     estate_sales = float(observed["net_sales_value"].sum()) if not observed.empty else 0.0
 
     # Every term below is already signed in the direction it affects the result:
-    # savings positive, costs negative. Summing them is therefore the net, and an
+    # savings positive, costs negative. Summing them is therefore the net. An
     # earlier version that subtracted two of the negative terms silently
-    # double-counted them — the components did not add up to the total, which is
+    # double-counted them. The components did not add up to the total, which is
     # how it was caught. A reviewer can re-add this row and should get the result.
     net = (
         waste_avoided_cost
@@ -825,8 +823,8 @@ def quantify_impact(
             "value": round(estate_waste, 2),
             "basis": (
                 "what the estate recorded as waste over the same window, on the "
-                "short-life population the plan covers — NOT the same scope as the "
-                "report's headline waste figure, which spans every line"
+                "short-life population the plan covers. This is not the same scope "
+                "as the report's headline waste figure, which spans every line"
             ),
         },
         {
@@ -840,7 +838,7 @@ def quantify_impact(
             "basis": (
                 "This table is scoped to short-life, markdown-eligible lines only. The "
                 "report's headline section covers the whole estate, so the estate_* "
-                "rows here are deliberately smaller and must not be read against it."
+                "rows here are smaller and must not be read against it."
             ),
         },
     ]
@@ -855,24 +853,22 @@ def reconcile_impact_with_frontier(
 ) -> pd.DataFrame:
     """Check the dollar claim against the frontier, and report the disagreement.
 
-    These are two views of the same trade-off built from different directions —
-    the impact function differences two concrete order plans, while the frontier
-    sweeps a ratio and prices the two losses — so they can disagree, and when they
-    do that disagreement is the most informative thing on the page.
+    These are two views of the same trade-off built from different directions.
+    The impact function differences two concrete order plans, while the frontier
+    sweeps a ratio and prices the two losses. They can disagree, and when they do,
+    the disagreement is the most informative thing on the page.
 
-    On this estate they disagree in a specific and important way: the frontier's
-    optimum sits near a 0.41 service level while the recommended plan averages
-    0.55, so the plan is ordering *more* than the economics alone would ask for.
-    The reason is structural rather than a bug — the plan is capped by shelf life
-    and rounded up to supplier pack sizes, both of which push the ordered
-    quantity above the unconstrained optimum. That is the honest position: the
-    economics say order less, the operation says you cannot order less than a
-    pack, and the gap between them is what a real deployment has to negotiate.
+    On this estate they disagree in a specific way. The frontier's optimum sits
+    near a 0.41 service level while the recommended plan averages 0.55, so the
+    plan orders more than the economics alone would ask for. The cause is
+    structural: the plan is capped by shelf life and rounded up to supplier pack
+    sizes, and both push the ordered quantity above the unconstrained optimum.
+    The economics say order less. The operation says you cannot order less than a
+    pack. A real deployment has to negotiate the gap.
 
-    Reporting this as a row rather than resolving it silently is deliberate. A
-    plan that quotes a $ benefit while its own frontier says the opposite
-    direction would be misleading, and the disagreement is what a reviewer
-    should see.
+    Reporting this as a row rather than resolving it silently matters. A plan that
+    quotes a dollar benefit while its own frontier points the opposite way would
+    be misleading, and a reviewer should see the disagreement.
     """
     if impact.empty or frontier.empty:
         return pd.DataFrame()
@@ -886,7 +882,7 @@ def reconcile_impact_with_frontier(
 
     # Every row is a number plus its explanation. A boolean is expressed as 1/0
     # because mixing types in one column makes pandas fall back to object dtype,
-    # and the warehouse then refuses the table — which is how this first failed.
+    # and the warehouse then refuses the table. That is how this first failed.
     rows = [
         {
             "check": "frontier_optimum_service_level",
@@ -916,8 +912,8 @@ def reconcile_impact_with_frontier(
             "check": "impact_net_benefit",
             "value": round(net, 2),
             "note": (
-                "the plan's own dollar claim. A NEGATIVE figure here with a "
-                "positive frontier optimum means the two methods disagree — read "
+                "the plan's own dollar claim. A negative figure here, with a "
+                "positive frontier optimum, means the two methods disagree. Read "
                 "the notes in docs/DECISIONS.md before quoting either."
             ),
         },

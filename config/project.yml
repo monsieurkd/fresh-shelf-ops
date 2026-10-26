@@ -1,8 +1,8 @@
 # ---------------------------------------------------------------------------
-# Project configuration — the single place the pipeline reads its clock,
-# its paths and its economic assumptions from.
+# Project configuration. This is the single place the pipeline reads its clock,
+# paths and economic assumptions from.
 #
-# The clock is deliberately pinned: this project is a *reproducible* snapshot of
+# The clock is pinned: this project is a *reproducible* snapshot of
 # a supermarket group's fresh departments as at 2026-09-10. Data ends the day
 # before the as-of date, so nothing in the warehouse is "today's partial day".
 # ---------------------------------------------------------------------------
@@ -72,7 +72,7 @@ optimise:
 
 report:
   top_n_items: 15
-  title: "Fresh loss & markdown performance — Southern Fresh Markets"
+  title: "Fresh loss and markdown performance: Southern Fresh Markets"
   # A prefix kept for backwards reference only. The report derives its own
   # subtitle from the data (stores, items, trading days, date range), because a
   # hardcoded scope claim is wrong the moment the world is rescaled.

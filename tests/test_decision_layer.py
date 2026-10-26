@@ -64,7 +64,7 @@ def test_perfect_forecast_scores_zero():
 def test_pinball_loss_is_asymmetric_in_the_right_direction():
     """At q=0.9, under-forecasting must cost more than over-forecasting.
 
-    This asymmetry is the whole reason the optimiser can use a quantile at all:
+    This asymmetry is why the optimiser can use a quantile at all:
     if the loss were symmetric the model would predict a mean, and the newsvendor
     calculation would be feeding on the wrong statistic.
     """
@@ -117,7 +117,7 @@ def test_pick_quantile_rounds_up_never_down():
     """Rounding down would silently order less than the economics asked for.
 
     On a fresh line the cost of being one pack short is asymmetric, so the safe
-    direction is up — and the test says which direction is safe.
+    direction is up. The test says which direction is safe.
     """
     available = [0.5, 0.7, 0.9]
     assert pick_quantile(0.6, available) == 0.7
@@ -227,11 +227,11 @@ def test_impact_components_sum_to_the_net_benefit():
 def test_impact_haircut_is_symmetric():
     """One resale assumption must apply to both sides of the order delta.
 
-    Discounting only the recovery side while charging the loss side in full is not
-    conservatism — it manufactures a loss out of a symmetric trade, which is what
-    an earlier version of this function did. The check is on the *rate* applied,
-    so it isolates the haircut from the (legitimately different) quantities either
-    side of the delta.
+    Discounting only the recovery side while charging the loss side in full is
+    not conservatism. It manufactures a loss out of a symmetric trade, which is
+    what an earlier version of this function did. The check is on the *rate*
+    applied, so it isolates the haircut from the (legitimately different)
+    quantities either side of the delta.
     """
     cfg = load_config()
     base = _synthetic_plan(80)
@@ -265,7 +265,7 @@ def test_impact_haircut_is_symmetric():
     assert added_units > 0 and cut_units > 0
     assert recovered_rate == pytest.approx(forgone_rate, rel=1e-6), (
         f"the add side recovers at {recovered_rate:.3f} of margin while the cut "
-        f"side charges at {forgone_rate:.3f} — the haircut is not symmetric"
+        f"side charges at {forgone_rate:.3f}; the haircut is not symmetric"
     )
 
 

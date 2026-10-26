@@ -8,7 +8,7 @@ file, and it is easy to violate by accident in ways that never raise:
   Every rolling feature here is shifted by one day first, via the window frame
   `rows between N preceding and 1 preceding`.
 * A promotion flag is fine as a feature because the plan is published in advance
-  and loaded as date ranges — the flag for a day is knowable before that day.
+  and loaded as date ranges. The flag for a day is knowable before that day.
 * Weather is a known-future variable in reality (a 7-day forecast is good), but
   the simulation gives the model *perfect* knowledge of it. That makes the
   backtest a little flattering, and the report says so rather than hiding it.
@@ -79,7 +79,7 @@ def build_features_sql() -> str:
     """The feature query, as SQL.
 
     Returned as a string so the same text can be run, explained, or printed in a
-    review — a feature definition buried under a chain of pandas calls is much
+    review. A feature definition buried under a chain of pandas calls is much
     harder to argue about.
     """
     return f"""
@@ -116,7 +116,7 @@ def build_features_sql() -> str:
     ),
 
     -- Weather and promotions joined at their natural grain. Both are known in
-    -- advance in reality — a forecast and a published plan — which is why they
+    -- advance in reality, a forecast and a published plan, which is why they
     -- may sit on the current row rather than being lagged.
     enriched as (
 
@@ -153,7 +153,7 @@ def build_features_sql() -> str:
     select
         *,
         -- Momentum: this week against this month. Above 1 the line is growing,
-        -- below 1 it is dying — and a dying line is where waste concentrates.
+        -- below 1 it is dying. A dying line is where waste concentrates.
         case
             when units_ma_28 > 0 then units_ma_7 / units_ma_28
         end                                                  as momentum_7_28,

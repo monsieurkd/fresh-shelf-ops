@@ -114,7 +114,7 @@ def test_disposals_and_the_daily_ledger_agree(micro_world):
 
     `truth_disposals` is what physically left the shelf; `truth_store_item_day`
     is the day's ledger. If they disagree, the warehouse's ledger reconciliation
-    will invent unrecorded shrink out of a simulation bug — which is exactly how
+    will invent unrecorded shrink out of a simulation bug. That is exactly how
     this test earned its place: the random-quality losses were being removed
     from the shelf but never added to the daily waste figure.
     """
@@ -166,7 +166,7 @@ def test_the_window_opens_on_a_steady_shelf(micro_world):
     Stock is *supposed* to be low on day one: the day before was a closed Sunday,
     and the estate's ordering habit prices cover only to the next delivery. So
     the test is that day one looks like an ordinary Monday rather than like the
-    empty store a cold start would produce — the run must have been carrying
+    empty store a cold start would produce. The run must have been carrying
     stock, batches and expiry dates for three weeks before the window opened.
     """
     _, world = micro_world
@@ -185,7 +185,7 @@ def test_the_window_opens_on_a_steady_shelf(micro_world):
     norm = same_weekday.median()
     assert by_day.iloc[0] > 0.6 * norm, (
         f"day one holds ${by_day.iloc[0]:,.0f} of stock against a normal "
-        f"{first_day:%A} of ${norm:,.0f} — the warm-up did not carry shelf state, "
+        f"{first_day:%A} of ${norm:,.0f}; the warm-up did not carry shelf state, "
         "so the window is opening on a cold shelf"
     )
     # A cold start would also show up as deliveries with nothing to sell from.

@@ -64,7 +64,7 @@ def _business_dates_from_local(series: pd.Series, tz: str) -> pd.Series:
 def load_pos_sales(
     cfg: Config, raw: pd.DataFrame, markers: dict[str, str], source: str
 ) -> tuple[pd.DataFrame, list[dict], date | None]:
-    """The POS extract — the biggest feed and the one with the most to get wrong.
+    """The POS extract: the biggest feed and the one with the most to get wrong.
 
     Handles: cents vs dollars (D05, via the file's own money-unit marker and a
     plausibility bound), text units with a locale comma (D04), void lines (D10),
@@ -117,7 +117,7 @@ def load_pos_sales(
                 "unit_of_measure": str(record.get("unit_of_measure", "ea")).strip() or "ea",
                 # Forced to str, never left to inference: an all-empty column
                 # makes pandas (and so DuckDB) type it as INTEGER, and then the
-                # first real value — a promo name — fails to convert against a
+                # first real value, a promo name, fails to convert against a
                 # table that was created from a quieter day's file. This is the
                 # bug that only showed up on the full-estate run.
                 "money_unit_as_filed": str(money_unit),
@@ -144,8 +144,8 @@ def load_pos_sales(
                 "promo_name",
             ]
         )
-    # The business day of the file is its most common business date, which is
-    # read from the contents — never from the folder it landed in (D02).
+    # The business day of the file is its most common business date, read from
+    # the contents. It is never read from the folder the file landed in (D02).
     business_date = frame["business_date"].mode().iloc[0] if not frame.empty else None
     return frame, quarantine, business_date
 
@@ -196,7 +196,7 @@ def load_goods_received(
 def load_waste_events(
     cfg: Config, raw: pd.DataFrame, markers: dict[str, str], source: str
 ) -> tuple[pd.DataFrame, list[dict], date | None]:
-    """Loss scans — the UTC feed (D06).
+    """Loss scans: the UTC feed (D06).
 
     The raw timestamp is UTC because that is what the handhelds write. The
     business date is derived *after* converting to Adelaide local time, so a
@@ -381,7 +381,7 @@ def load_trading_calendar(
 ) -> tuple[pd.DataFrame, list[dict], date | None]:
     """The trading calendar: which days the doors were open.
 
-    Unlike every other feed, this one carries no business day of its own — it
+    Unlike every other feed, this one carries no business day of its own. It
     describes the whole window, so it replaces rather than merging by day.
     """
     quarantine: list[dict] = []

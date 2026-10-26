@@ -34,7 +34,7 @@ vars:
   # --- loss economics -------------------------------------------------------
   # Waste and unrecorded shrink are valued at cost of goods (ex-GST); markdown
   # erosion is valued at the gross margin it gives away. Fresh food is
-  # GST-free, so GST never appears in a loss number — see docs/DECISIONS.md.
+  # GST-free, so GST never appears in a loss number. See docs/DECISIONS.md.
   gst_rate: 0.10
   markdown_depths: [0.10, 0.20, 0.30, 0.40, 0.50, 0.70]
 

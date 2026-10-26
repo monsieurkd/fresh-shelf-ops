@@ -6,8 +6,8 @@ version: 2
 # The singular tests in dbt_tests/ each prove a *claim* about a defect. These
 # prove the boring structural things those claims rest on: that a key is unique
 # where it should be, that a required value is never null, and that enumerated
-# columns only contain the values the models document. Both kinds are needed —
-# a reconciliation can be internally consistent and still be keyed wrongly.
+# columns only contain the values the models document. Both kinds are needed.
+# A reconciliation can be internally consistent and still be keyed wrongly.
 # ---------------------------------------------------------------------------
 models:
   - name: fct_store_item_day
@@ -92,7 +92,7 @@ models:
           - not_null
 
   - name: mart_loss_performance
-    description: "Loss by store, department and month — the report's headline."
+    description: "Loss by store, department and month. The report's headline."
     columns:
       - name: store_code
         tests:

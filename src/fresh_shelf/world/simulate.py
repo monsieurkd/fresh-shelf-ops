@@ -5,22 +5,22 @@ One day at a time, per store, per ranged line:
     deliver -> sell at full price (FEFO) -> mark down what is about to expire
             -> sell some of that -> dispose of the rest -> count what is left
 
-Everything the warehouse will later have to *infer* is produced here as truth
+Everything the warehouse will later have to infer is produced here as truth
 first: which batch expired on which day, what was thrown out, which disposals
 were never scanned, and how much margin the markdown pass gave away. The
-simulation is the ground truth the pipeline is then tested against — the point
-is not that the synthetic world is realistic in every detail, it is that the
-pipeline's answers can be checked against a world whose answers are known.
+simulation is the ground truth the pipeline is tested against. The synthetic
+world does not need to be realistic in every detail. It needs known answers, so
+the pipeline's answers can be checked against them.
 
-Three behaviours here *are* the problem the project optimises:
+Three behaviours here are the problem the project optimises:
 
-* **Ordering** follows the estate's habit — a naive average-sales forecast plus
-  a per-store over-order bias rounded up to the pack. On a short-life line,
-  that bias is what becomes waste.
-* **Markdown** is ad hoc: a store either remembers to do a pass or it does not,
-  and the depth is a habit (30% on the last day, 50% on the day of expiry).
-* **Disposal scanning is incomplete**, which is why recorded waste is a floor
-  rather than the truth.
+* Ordering follows the estate's habit: a naive average-sales forecast plus a
+  per-store over-order bias, rounded up to the pack. On a short-life line, that
+  bias becomes waste.
+* Markdown is ad hoc. A store either remembers to do a pass or it does not, and
+  the depth is a habit (30% on the last day, 50% on the day of expiry).
+* Disposal scanning is incomplete, which is why recorded waste is a floor rather
+  than the truth.
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ LIFT_BY_DEPTH: dict[float, float] = {
 
 #: Preparation loss: the trim a department loses converting stock into the
 #: product it sells (slicing hams, filleting whole fish, trimming leaves). It is
-#: a loss but it is not waste — the warehouse keeps the two apart.
+#: a loss, but it is not waste. The warehouse keeps the two apart.
 PREP_LOSS_RATE = {"P": 0.012, "B": 0.0, "D": 0.025, "Y": 0.0, "S": 0.035}
 
 #: Not every department peaks with footfall: milk is milk, bread is Saturday.
@@ -259,7 +259,7 @@ def _build_promotions(
             length = int(rng.integers(4, 8))
             discount = float(rng.choice([0.10, 0.15, 0.20, 0.25, 0.30]))
             # A catalogue discount lifts units far more than a clear-out
-            # markdown does: the whole point of the feature is volume.
+            # markdown does. The feature exists for volume.
             uplift = 1.25 + 0.9 * discount
             name_map = {
                 0.10: "Weekly Special",
@@ -509,7 +509,7 @@ def _simulate_store_item(
                         rng=item_rng,
                         local_hour=float(item_rng.uniform(7.0, 15.0)),
                         # Preparation trims go in the prep bin, which is scanned
-                        # on a bin-by-bin routine rather than per item — hence
+                        # on a bin-by-bin routine rather than per item. Hence
                         # the flat 50%, independent of the store's discipline.
                         scan_probability=0.5,
                         loss_class="preparation",
@@ -680,19 +680,18 @@ def _legacy_order_qty(
     safety day, add the store's over-order bias, subtract what is already on the
     shelf, round up to the pack.
 
-    Two things make it the *problem* rather than the solution, and both are the
-    point of the project: it prices cover from an average that knows nothing
-    about tomorrow's weather, footfall or holiday — and it never looks at how
-    long the stock on the shelf actually lives, so a line with two days of life
-    gets ordered to cover five days of trading.
+    Two things make it the problem rather than the solution. It prices cover from
+    an average that knows nothing about tomorrow's weather, footfall or holiday.
+    And it never looks at how long the stock on the shelf actually lives, so a
+    line with two days of life gets ordered to cover five days of trading.
     """
     base_daily = item.weekly_units / 7.0 * store.size_index * si.variety_index
     cover = gap + 1.0
     target = base_daily * cover * (1.0 + over_order_bias) * item.season_factor(day.month)
     shortfall = target - current_soh
     if shortfall <= 0:
-        # Nothing needed — unless the shelf is thinner than a day's trade, in
-        # which case even a disciplined store tops up rather than risk a gap.
+        # Nothing needed, unless the shelf is thinner than a day's trade. In
+        # that case even a disciplined store tops up rather than risk a gap.
         return float(item.pack_size) if current_soh < base_daily else 0.0
     packs = max(1.0, ceil(shortfall / item.pack_size))
     return packs * item.pack_size
@@ -738,8 +737,8 @@ def _markdown_pass(
     """The evening markdown pass, as it is actually run: by habit, not by model.
 
     Returns (ticketed qty, depth, units that sold at the marked price, margin
-    given away). Some of what is ticketed rings through at full price anyway —
-    the print-and-not-honour problem (D13).
+    given away). Some of what is ticketed rings through at full price anyway.
+    That is the print-and-not-honour problem (D13).
     """
     expiring_today = sum(b.qty_remaining for b in batches if b.expiry_date <= day)
     expiring_tomorrow = sum(
@@ -765,14 +764,14 @@ def _markdown_pass(
     if moved <= 0:
         return 0.0, 0.0, 0.0, 0.0
     # `ticketed` is what the sticker went on and actually moved. `honoured` is
-    # the share the till rang at the marked price — the rest of the ticket was
+    # the share the till rang at the marked price. The rest of the ticket was
     # rung at full price by mistake (D13).
     ticketed = moved
     honoured = _round_qty(item, moved * (1.0 - unhonoured_rate))
     # Erosion is what the *customer* was given off, so it includes the units the
     # markdown moved even where a till failed to honour the ticket. If erosion
     # tracked only the honoured share it would understate the margin given away,
-    # and D13's whole point is that printed and realised differ.
+    # and D13 exists because printed and realised differ.
     discount = moved * item.retail_price * depth
 
     # Sell what the markdown moved (the rest of the ticket rings at full price).
@@ -843,8 +842,8 @@ def _record_disposal(
     """A physical disposal happens; whether it gets scanned is a separate event.
 
     The scanned subset is what the loss-scan feed contains. The rest is real
-    stock loss that no feed records — which is why the warehouse has to
-    reconcile the ledger against counts instead of trusting the scan file.
+    stock loss that no feed records. That is why the warehouse reconciles the
+    ledger against counts instead of trusting the scan file.
     """
     scanned = bool(rng.random() < scan_probability)
     staff_id = staff[abs(_stable(item.sku + str(day.toordinal()))) % len(staff)]

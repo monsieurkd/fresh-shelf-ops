@@ -1,21 +1,20 @@
-"""Writing the simulated sources to disk, as the source systems really drop them.
+"""Writing the simulated sources to disk, as the source systems drop them.
 
-The simulation produces clean frames. This module is what makes them a *data
-engineering* problem: it writes each feed as the file a source system would
-actually have put in a shared folder — one file per store-day, named by whoever
-wrote it, arriving on the date the integration ran rather than the date it
-describes, with the defects in `config/defect_catalogue.yml` applied en route.
+The simulation produces clean frames. This module turns them into a data
+engineering problem: each feed is written as the file a source system would have
+put in a shared folder. That means one file per store-day, named by whoever wrote
+it, arriving on the date the integration ran rather than the date it describes,
+with the defects in `config/defect_catalogue.yml` applied on the way.
 
-Two deliberate choices:
+Two choices matter:
 
-* Files are dropped into ``data/landing/<source>/<landing_date>/`` where
-  ``landing_date`` is when the file *arrived*, not what it contains. That is the
-  whole reason a late file (D02) is a real problem in this pipeline: the
-  partition tells you nothing about the business date inside, so the loader has
-  to read the file.
+* Files land in ``data/landing/<source>/<landing_date>/``, where ``landing_date``
+  is when the file arrived, not what it contains. That is why a late file (D02)
+  is a real problem here: the partition says nothing about the business date
+  inside, so the loader has to read the file.
 * Every file carries a header marker the loader can use where the source system
-  does publish one — the money unit (D05) is in the CSV header comment, because
-  that is how the till actually marks a cents export.
+  publishes one. The money unit (D05) sits in the CSV header comment, because
+  that is how the till marks a cents export.
 """
 
 from __future__ import annotations
@@ -140,9 +139,9 @@ class LandingWriter:
 
         Precomputed as an explicit set of (store, day) pairs rather than decided
         per store-day. The first version resolved the outage day correctly and
-        then dropped *every* store trading that day, which silently deleted the
-        rest of the estate from the landing zone — a bug that made five other
-        tests fail for the wrong reason.
+        then dropped every store trading that day, which silently deleted the
+        rest of the estate from the landing zone. That bug made five other tests
+        fail for the wrong reason.
         """
         count = int(self.defects["D03"]["injection"]["days"])
         if count <= 0:
@@ -189,10 +188,10 @@ class LandingWriter:
         """The trading calendar as a source feed.
 
         The store system owns this: it is what decides when the doors open, and
-        the roster and the till both read it. It has to land like any other feed,
-        because the alternative is dbt reading the sealed truth in `data/truth`
-        — which would make the warehouse's own answers unauditable, since the
-        pipeline would be checking itself against a file only it can see.
+        the roster and the till both read it. It has to land like any other feed.
+        The alternative is dbt reading the sealed truth in `data/truth`, which
+        would make the warehouse's own answers unauditable, because the pipeline
+        would be checking itself against a file only it can see.
         """
         cal = world.calendar.copy()
         frame = cal.rename(columns={"day": "trading_date"})[
@@ -263,7 +262,7 @@ class LandingWriter:
             # D09: rows for SKUs the item master does not carry (seasonal lines).
             group = self._inject_unknown_sku(group, rng, unknown_sku_rate)
 
-            # D03: a link outage — this store-day's extract is never sent.
+            # D03: a link outage. This store-day's extract is never sent.
             if (store, business_date) in self._outages:
                 self.dropped_store_days.add(("pos_sales", store, business_date))
                 continue
@@ -276,7 +275,7 @@ class LandingWriter:
                     group[col] = (group[col] * 100).round(0).astype("int64")
 
             # D04: another store's locale writes units as text, and the firmware
-            # uses a decimal comma. The column must stay `object` dtype — pandas
+            # uses a decimal comma. The column must stay `object` dtype. Pandas
             # silently re-coerces a mixed list back to float64, which would write
             # clean numbers to disk and make the defect invisible.
             if store in set(self.defects["D04"]["injection"]["stores"]):
@@ -327,13 +326,13 @@ class LandingWriter:
     def _inject_voids(self, group: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
         """D10: a void or a refund arrives as a negative line in the extract.
 
-        A void is the *reversal of part of* a line already in the file — the
-        till refunds the two loaves a customer brought back, not the whole day's
-        bread. So each affected line is reduced by the amount that was voided
-        and a matching negative line carries it back out. The reduction is
-        bounded by the line's own units, because reversing more than a line
-        holds would drive the net below zero — which no till can produce and
-        which the warehouse would (and should) reject as corrupt data.
+        A void is the reversal of part of a line already in the file. The till
+        refunds the two loaves a customer brought back, not the whole day's
+        bread. So each affected line is reduced by the amount that was voided and
+        a matching negative line carries it back out. The reduction is bounded by
+        the line's own units, because reversing more than a line holds would
+        drive the net below zero. No till can produce that, and the warehouse
+        would (and should) reject it as corrupt data.
         """
         if group.empty:
             return group
@@ -548,8 +547,8 @@ def _reason_variant(code: str, salt: int, variants: dict[str, list[str]]) -> str
 
 
 def reason_code_variants() -> list[str]:
-    """Every raw code the sources can emit — pinned by a test against the seed
-    map, so a new firmware code cannot enter the landing zone unmapped."""
+    """Every raw code the sources can emit. A test pins this list against the
+    seed map, so a new firmware code cannot enter the landing zone unmapped."""
     seen: set[str] = set()
     for options in _reason_variants().values():
         seen.update(options)
@@ -590,7 +589,7 @@ def write_landing(cfg: Config, world: WorldData) -> pd.DataFrame:
             & manifest["file_name"].str.contains(store, regex=False)
         )
         manifest.loc[mask, "dropped_store_day"] = True
-    # Record the deliberate gaps so the loader's coverage test means something.
+    # Record the gaps so the loader's coverage test means something.
     gaps = pd.DataFrame(
         [
             {"source": source, "store_code": store, "business_date": day}

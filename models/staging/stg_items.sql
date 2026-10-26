@@ -6,8 +6,8 @@
   `shelf_life_days` and `life_at_delivery_days` are the two columns that decide
   whether a line can become waste at all, so they are the columns this model
   protects. `is_waste_risk` marks the lines whose life is short enough that a
-  bad forecast turns directly into a bin — which is the population the
-  optimiser works on.
+  bad forecast turns directly into a bin. That is the population the optimiser
+  works on.
 -#}
 select
     sku,

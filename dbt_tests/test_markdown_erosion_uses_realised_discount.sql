@@ -82,7 +82,7 @@ cross join paired pr
 where
     -- The fact table must be built from realised POS money. The two legitimately
     -- differ by the unmapped-SKU share (D09), so the allowance is that gap
-    -- rather than a flat tolerance — otherwise the check would quietly become a
+    -- rather than a flat tolerance. Otherwise the check would quietly become a
     -- check on the item master.
     abs(f.fct_erosion - p.pos_realised_erosion) > (
         select coalesce(sum(pp.markdown_erosion_value), 0) * 1.05 + 1.0
@@ -103,7 +103,7 @@ where
     -- The real guard on "erosion is realised money, not intent": erosion must
     -- never EXCEED what the printed tickets could possibly have given away.
     --
-    -- A tighter check — that the two differ — was tried and abandoned. On this
+    -- A tighter check, that the two differ, was tried and abandoned. On this
     -- estate the printed value and the realised value sit within 1% of each
     -- other, because the unhonoured share is small, so a "they must differ"
     -- assertion would be testing rounding rather than the distinction. The

@@ -3,13 +3,13 @@
 {#-
   Deliveries, with the three quantities kept apart.
 
-  `qty_ordered`, `qty_received` and `qty_rejected` are deliberately not
+  `qty_ordered`, `qty_received` and `qty_rejected` are not
   collapsed into a fill rate. "We ordered less", "the supplier shorted us" and
   "it arrived warm and we refused it" are three different problems with three
   different fixes, and a single ratio hides which one you have.
 
   `days_of_life_at_delivery` is computed per line rather than read from the item
-  master, because a substitution arrives with its own, shorter, life — and that
+  master, because a substitution arrives with its own, shorter, life. That
   shorter life is what makes the substitution a waste risk.
 -#}
 select

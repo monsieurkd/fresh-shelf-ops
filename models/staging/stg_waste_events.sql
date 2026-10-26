@@ -4,8 +4,8 @@
   Loss scans, with the reason code mapped to a group (D08).
 
   The raw code is kept alongside the group on purpose. A firmware update that
-  introduces a new label must show up as `unmapped` and set off an alert —
-  defaulting it to 'Other' would make a new code indistinguishable from the
+  introduces a new label must show up as `unmapped` and set off an alert.
+  Defaulting it to 'Other' would make a new code indistinguishable from the
   codes that genuinely mean "other", and the first anyone would know about it is
   a loss report that quietly stopped adding up.
 

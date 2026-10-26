@@ -1,13 +1,13 @@
 """Inline SVG charts.
 
 No charting library and no CDN. The report has to be a single file that renders
-in ten years, offline, on a machine that has never heard of this project — so
-every chart is hand-built SVG embedded in the HTML. That also means the charts
-are accessible: each one carries a `<title>` and a `<desc>`, so a screen reader
-reads the finding rather than announcing "image".
+in ten years, offline, on a machine that has never heard of this project. Every
+chart is hand-built SVG embedded in the HTML. That also means the charts are
+accessible: each one carries a `<title>` and a `<desc>`, so a screen reader reads
+the finding rather than announcing "image".
 
 The palette is defined once here. It uses a diverging scale for the
-waste-versus-margin charts, because the whole point of those is which of two
+waste-versus-margin charts, because those charts exist to show which of two
 opposing costs dominates, and a single-hue ramp would hide exactly that.
 """
 
@@ -145,7 +145,7 @@ def line_chart(
         )
     for i in range(5):
         value = x_min + (x_max - x_min) * i / 4
-        # NB: not `x` — that would rebind the function's `x` parameter and break
+        # NB: not `x`. That would rebind the function's `x` parameter and break
         # the series loop below, which is how this chart first shipped.
         tick_x = sx(value)
         parts.append(
@@ -216,9 +216,9 @@ def scatter_bars(
 ) -> str:
     """Stacked horizontal bars: waste cost against markdown erosion per group.
 
-    Stacked rather than grouped because the question is the *total* cost of
-    getting a department wrong, and which of the two dominates — which grouped
-    bars make you compute mentally.
+    Stacked rather than grouped because the question is the total cost of
+    getting a department wrong, and which of the two dominates. Grouped bars make
+    you compute that mentally.
     """
     if not labels:
         return _svg(width, 100, title, desc, _empty(width, 100, "No data"))

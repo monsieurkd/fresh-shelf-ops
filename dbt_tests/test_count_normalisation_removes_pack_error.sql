@@ -2,7 +2,7 @@
 --
 -- The ledger is kept in eaches, so a count recorded in *packs* has to be
 -- multiplied by the pack size before it can be compared with anything. Left in
--- packs, a single line is out by up to 12x — which does not look like a unit
+-- packs, a single line is out by up to 12x. That does not look like a unit
 -- error, it looks like enormous unrecorded shrink, and somebody spends a week
 -- investigating a theft that is a multiplication.
 --

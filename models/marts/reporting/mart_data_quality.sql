@@ -11,12 +11,12 @@
 
   Three classes are reported:
 
-    * **Coverage** — store-days the estate traded but no feed arrived for (D03).
-      These are EXCLUDED from sell-through, not read as zero sales, which is why
+    * Coverage: store-days the estate traded but no feed arrived for (D03).
+      These are excluded from sell-through, not read as zero sales, which is why
       the exclusion has to be counted.
-    * **Item-master gaps** — revenue on SKUs the master does not carry (D09).
+    * Item-master gaps: revenue on SKUs the master does not carry (D09).
       Preserved in the ledger, quantified here.
-    * **Feed hygiene** — late files, redeliveries, mixed money units, unmapped
+    * Feed hygiene: late files, redeliveries, mixed money units, unmapped
       loss reasons (D01, D02, D05, D08). Not wrong, but worth watching, because
       each one is a warning sign that a source system changed.
 -#}

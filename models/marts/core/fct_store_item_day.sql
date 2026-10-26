@@ -7,10 +7,10 @@
   worth stating is that the three loss concepts are kept *apart* rather than
   summed into one "shrink" figure, because they have three different fixes:
 
-    * markdown erosion  — margin given away to sell something before it expires.
-                          Fixed by marking down earlier and shallower.
-    * recorded waste    — scanned disposals at cost. Fixed by ordering less.
-    * unrecorded shrink — loss no record explains. Fixed by better process.
+    * markdown erosion: margin given away to sell something before it expires.
+                        Fixed by marking down earlier and shallower.
+    * recorded waste: scanned disposals at cost. Fixed by ordering less.
+    * unrecorded shrink: loss no record explains. Fixed by better process.
 
   A single "loss" number would average those into something nobody can act on,
   and would hide which of the three a store actually has a problem with.
@@ -42,7 +42,7 @@ fefo as (
 ),
 
 -- Residue is a segment figure (between counts), not a daily one. Spreading it
--- back onto days by segment length is a deliberate simplification: it makes the
+-- back onto days by segment length is a simplification: it makes the
 -- number usable per day without pretending that a daily split actually exists.
 shrink as (
 
@@ -87,8 +87,8 @@ select
     l.retail_price,
     l.gross_margin_per_unit,
     -- Margin this line earns per unit sold, which is the value a markdown puts
-    -- at risk. Quoting waste in cost and markdown in margin is deliberate: they
-    -- are different kinds of money and adding them would be wrong.
+    -- at risk. Quoting waste in cost and markdown in margin keeps them apart:
+    -- they are different kinds of money and adding them would be wrong.
     cast(l.retail_price - l.standard_cost as decimal(10, 4))  as unit_margin_value,
 
     -- ---- what came in ------------------------------------------------------

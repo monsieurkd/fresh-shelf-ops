@@ -1,4 +1,4 @@
-"""fresh_shelf — fresh-department waste vs revenue optimisation.
+"""fresh_shelf: fresh-department waste and revenue optimisation.
 
 A small but complete data platform: simulated retail source systems land dirty
 files; a Python loader makes them trustworthy in DuckDB; dbt builds a star

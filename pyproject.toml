@@ -1,7 +1,7 @@
 [project]
 name = "fresh-shelf-ops"
 version = "0.1.0"
-description = "Waste-vs-revenue optimisation for short-shelf-life fresh departments — DuckDB warehouse, dbt models, forecast + markdown optimiser"
+description = "Waste and revenue optimisation for short-shelf-life fresh departments: DuckDB warehouse, dbt models, forecast and markdown optimiser"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 license = { text = "MIT" }

@@ -4,7 +4,7 @@ The most important property in this project is negative: **the pipeline must not
 read `data/truth`.** That directory holds the simulator's own record of what
 happened to the shelf, and it exists so the tests can check the pipeline against
 known answers. If any part of the pipeline read it, every downstream claim would
-be circular — the warehouse would be validating itself against a file only it can
+be circular. The warehouse would be validating itself against a file only it can
 see, and a bug in the loader would be invisible because both sides would share
 it.
 
@@ -169,7 +169,7 @@ def test_landing_dir_and_truth_dir_are_separate_trees():
 
 
 def test_metadata_files_are_not_mistaken_for_answers():
-    """`landing_gaps.csv` records what the sources sent — a real pipeline knows
+    """`landing_gaps.csv` records what the sources sent. A real pipeline knows
     that, so reading it is legitimate. It lives beside the answers only for
     convenience, and this test documents the distinction so the next person does
     not "clean up" by deleting it."""

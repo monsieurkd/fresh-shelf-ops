@@ -1,11 +1,11 @@
 """Configuration, paths and the pinned clock.
 
 Every time-related decision in this project flows from one value,
-``clock.as_of_date`` in ``config/project.yml``. That is deliberate. A pipeline
+``clock.as_of_date`` in ``config/project.yml``. A pipeline
 that calls ``date.today()`` cannot be replayed: "the last 12 months" means
 something different every time it runs, a backfill cannot be re-run, and a
 reviewer cannot check a number in the report against the data that produced it.
-Here "today" is **2026-09-10** — one month before the snapshot was assembled —
+Here "today" is **2026-09-10**, one month before the snapshot was assembled,
 so every run of every layer reproduces the same numbers, and the same code still
 accepts ``--as-of`` to run any other day.
 """

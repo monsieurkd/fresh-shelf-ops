@@ -1,7 +1,8 @@
 {{ config(materialized='table') }}
 
 {#-
-  Loss performance by department, store and month — the report's headline table.
+  Loss performance by department, store and month. This is the report's headline
+  table.
 
   The three loss concepts are reported side by side with their own bases:
 
@@ -10,8 +11,8 @@
     * unrecorded shrink as a confidence-weighted estimate, flagged as such
 
   Reporting waste as a share of *cost received* rather than of *sales* is
-  deliberate. A store can have high sales and high waste at once — that is what
-  over-ordering looks like — and a waste-to-sales ratio mathematically punishes
+  intentional. A store can have high sales and high waste at once. That is what
+  over-ordering looks like, and a waste-to-sales ratio mathematically punishes
   a store for selling well.
 -#}
 with fct as (

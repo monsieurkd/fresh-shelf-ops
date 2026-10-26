@@ -1,27 +1,27 @@
 """Loading the landing zone into the raw schema.
 
-The contract this layer holds to is narrow and boring, which is why it is worth
-stating: **after this runs, every number in `raw` is in dollars, in eaches, in
-Adelaide time, de-duplicated, and traceable to the file it came from.**
+The contract this layer holds is narrow: after it runs, every number in `raw` is
+in dollars, in eaches, in Adelaide time, de-duplicated and traceable to the file
+it came from.
 
-Nothing downstream is allowed to be clever about units, timezone or duplicates
+Nothing downstream is allowed to be clever about units, timezone or duplicates,
 because that is where the silent errors live. Concretely:
 
 * a file is identified by the sha256 of its bytes, so a redelivery under a new
   name loads once (D01);
-* the file's business day is read from its *contents*, never from its folder, so
-  a file that lands two mornings late still lands in the right partition (D02);
-* money is normalised to dollars using the money-unit marker the source
-  publishes in the file header, and anything implausible is quarantined with its
-  raw text rather than scaled (D04, D05);
+* the file's business day is read from its contents, never from its folder, so a
+  file that lands two mornings late still lands in the right partition (D02);
+* money is normalised to dollars using the money-unit marker the source publishes
+  in the file header, and anything implausible is quarantined with its raw text
+  rather than scaled (D04, D05);
 * loss-scan timestamps are converted from UTC to Adelaide time, and the business
-  day is derived from the *local* timestamp (D06);
-* a row that cannot be typed is quarantined with the raw value and the reason —
-  never defaulted to zero, because a zero is a number someone will report.
+  day is derived from the local timestamp (D06);
+* a row that cannot be typed is quarantined with the raw value and the reason.
+  It is never defaulted to zero, because a zero is a number someone will report.
 
-Every load writes: the raw table, a row in `ops.ingest_files` per file, and a
-row in `ops.raw_quarantine` per rejected row. That is what makes a run
-reviewable afterwards instead of a mystery.
+Every load writes the raw table, a row in `ops.ingest_files` per file, and a row
+in `ops.raw_quarantine` per rejected row. That is what makes a run reviewable
+afterwards instead of a mystery.
 """
 
 from __future__ import annotations
@@ -163,8 +163,8 @@ class Ingestor:
     ) -> pd.DataFrame:
         """Load the landing zone.
 
-        ``force`` re-processes files even if their checksum is already known —
-        which is what `make backfill` uses after a code change to a loader. It is
+        ``force`` re-processes files even if their checksum is already known.
+        That is what `make backfill` uses after a code change to a loader. It is
         safe because every loader replaces its rows for the business days it
         touches rather than appending blindly.
 
@@ -172,7 +172,7 @@ class Ingestor:
         Without it, shrinking the world leaves the previous world behind: run the
         eight-store estate, then `make world-small`, and `raw` holds both because
         nothing ever deletes a store that stopped appearing. That is a genuine
-        reproducibility hole rather than a test artefact — the report would be
+        reproducibility hole rather than a test artefact. The report would be
         built on two worlds at once, and the only visible symptom is a number
         that is quietly too big.
         """
@@ -270,7 +270,7 @@ class Ingestor:
             )
         self.quarantine.extend(quarantine)
 
-        # Lateness is not "how old is this file" — every feed is at least a day
+        # Lateness is not "how old is this file". Every feed is at least a day
         # old, because a trading day's extract lands the next morning. It is how
         # much *later* than that baseline the file actually turned up, which is
         # the only number that says whether a feed is drifting.
@@ -304,7 +304,7 @@ class Ingestor:
         The delete must be scoped to what this file *is*, not just to the day it
         covers. The POS feed lands one file per store per day, so deleting by
         business date alone means store S03's file wipes store S01's rows for
-        the same day — the last store processed each day is the only one that
+        the same day. The last store processed each day is the only one that
         survives. Keying on (business_date, store_code) is what makes the load
         idempotent per feed rather than destructive across feeds.
         """
@@ -365,8 +365,8 @@ class Ingestor:
 
         The load itself only replaces the (day, store) pairs a file covers, which
         is what makes it idempotent. That is necessary but not sufficient: if the
-        world *shrinks* — a backfill over a narrower window, or `world-small`
-        after `world` — the stores and days that no longer appear are never
+        world shrinks, through a backfill over a narrower window or `world-small`
+        after `world`, the stores and days that no longer appear are never
         overwritten, so they survive and the report is built on two worlds.
 
         The prune is scoped so it can only ever remove what has genuinely gone:
@@ -422,14 +422,13 @@ class Ingestor:
 
             # 2. Days outside the window the files themselves span. Derived from
             #    the files rather than from config, so it cannot disagree with
-            #    what was actually landed. A day whose file is merely LATE is not
-            #    a day that has gone — but `world` regenerates the whole landing
+            #    what was actually landed. A day whose file is merely late is not
+            #    a day that has gone. But `world` regenerates the whole landing
             #    zone, so a day with no file at all genuinely is not in this world.
             #
-            #    This is deliberately only a *window* check: it removes history
-            #    outside the landed span, never gaps inside it, because a gap
-            #    inside is a missing file the pipeline must report (D03), not
-            #    silently delete.
+            #    This is only a window check: it removes history outside the
+            #    landed span, never gaps inside it. A gap inside is a missing file
+            #    the pipeline must report (D03), not silently delete.
             conditions.append("business_date < ?")
             params.append(min(file_days))
             conditions.append("business_date > ?")
@@ -479,7 +478,7 @@ class Ingestor:
         `INSERT INTO t SELECT * FROM df` matches columns positionally, so it only
         works when the incoming frame has exactly the table's column order. The
         POS loader inserts `extract_batch_id` at a fixed position, and on a file
-        whose header differs the two orders diverge — the insert then silently
+        whose header differs the two orders diverge. The insert then silently
         shifts every value one column left and fails with a type error somewhere
         unrelated. Naming the columns makes the append order-independent.
         """

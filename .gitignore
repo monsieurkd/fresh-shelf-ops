@@ -6,7 +6,7 @@ __pycache__/
 .ruff_cache/
 .coverage
 
-# Generated data — the landing zone, the warehouse and every artifact are
+# Generated data. The landing zone, the warehouse and every artifact are
 # reproducible from `make world`; never commit them.
 data/
 build/

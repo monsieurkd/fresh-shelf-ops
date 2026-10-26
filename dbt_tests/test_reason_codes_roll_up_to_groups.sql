@@ -2,7 +2,7 @@
 --
 -- The failure this guards against is a *silent* one. A new firmware label that
 -- is not in `seeds/waste_reason_map.csv` arrives as 'unmapped', which is
--- correct and intentional — it is the alert. What is not acceptable is a code
+-- correct and intentional: it is the alert. What is not acceptable is a code
 -- that maps to a group AND a loss class that disagree with each other, or a
 -- mapping where expiry-class events have been classified as shrinkage, because
 -- that turns an ordering problem into a theft problem in the report.

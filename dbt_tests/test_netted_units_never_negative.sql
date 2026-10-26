@@ -2,7 +2,7 @@
 --
 -- The subtlety this test exists for: after netting, a voided line is a *positive*
 -- net row. `stg_pos_sales` has one row per store-day-SKU, already summed, so
--- "units_sold < 0" is the wrong place to look for a void — the reversal is a
+-- "units_sold < 0" is the wrong place to look for a void. The reversal is a
 -- fraction of the line it reverses, so the net stays positive by design.
 --
 -- So the test asserts on the two layers that can actually see a void:
@@ -12,7 +12,7 @@
 --     nothing more than that nothing happens.
 --
 --  2. **Netting recovers the truth.** Summed over the estate, the netted units
---     must equal the raw units summed — because netting is a sum. If the
+--     must equal the raw units summed, because netting is a sum. If the
 --     negatives were dropped, the netted total would sit *below* the raw total
 --     (or the raw below it if the reversal were double counted). A gross figure
 --     would also disagree, so the comparison has to be against the raw sum.
@@ -72,7 +72,7 @@ where
     -- And the ledger must agree with the netted sales, within the gap the
     -- unmapped SKUs explain (D09). The ledger spans the ranged assortment; POS
     -- also carries seasonal lines the item master has not caught up with, so the
-    -- two totals are legitimately different — and the *size* of the difference
+    -- two totals are legitimately different, and the *size* of the difference
     -- has to stay inside what the unmapped rows account for. If the gap grew
     -- beyond that, the ledger would be dropping real sales rather than simply
     -- not ranging them.

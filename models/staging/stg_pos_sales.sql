@@ -68,6 +68,6 @@ select
         when units_sold > 0
             then cast(net_sales_value / units_sold as decimal(12, 4))
     end                                                  as avg_unit_price,
-    -- Sold below the item's list price — evidence a markdown was honoured.
+    -- Sold below the item's list price. Evidence a markdown was honoured.
     (markdown_erosion_value > 0)                         as sold_with_markdown
 from netted

@@ -1,15 +1,15 @@
 """Tests for the report.
 
-A report is code that makes claims, so it gets tested like code. Three things
-matter and all three have failed silently in real projects:
+A report is code that makes claims, so it gets tested like code. Three properties
+matter, and all three have failed silently in real projects:
 
-* **It must be self-contained.** The whole point of a static HTML report is that
-  it renders offline in ten years. A CDN reference or a `<script>` tag breaks
-  that promise invisibly — the page looks perfect on the machine that built it.
-* **It must be well-formed.** Broken HTML renders as a plausible page with a
-  section missing, which is worse than a visible error.
-* **It must not overstate.** The headline is where a reader stops reading, so the
-  caveats have to be present in the page itself rather than in a docstring.
+* It must be self-contained. A static HTML report is meant to render offline in
+  ten years. A CDN reference or a `<script>` tag breaks that promise invisibly.
+  The page looks perfect on the machine that built it.
+* It must be well-formed. Broken HTML renders as a plausible page with a section
+  missing, which is worse than a visible error.
+* It must not overstate. The headline is where a reader stops reading, so the
+  caveats belong in the page itself rather than in a docstring.
 
 The charts are pure functions of their inputs, so they are tested directly
 rather than through the rendered page.
@@ -32,7 +32,7 @@ pytestmark = pytest.mark.warehouse
 
 
 class _WellFormed(HTMLParser):
-    """Minimal nesting checker. Not a validator — it catches the mistakes a
+    """Minimal nesting checker. Not a validator. It catches the mistakes a
     template makes: an unclosed tag, or an end tag with nothing to close."""
 
     VOID = frozenset(
@@ -144,17 +144,17 @@ def test_coverage_strip_draws_the_truth_diagonal():
 def rendered(tmp_path_factory):
     """Render the report from the warehouse if one has been built.
 
-    If there is no warehouse this **fails** rather than skipping. A skip reads as
-    coverage that is not there, and the whole point of these tests is to catch a
-    report that has stopped rendering its charts or stopped stating its caveats.
-    CI builds the world before running tests precisely so this cannot fire.
+    If there is no warehouse this fails rather than skipping. A skip reads as
+    coverage that is not there, and these tests exist to catch a report that has
+    stopped rendering its charts or stopped stating its caveats. CI builds the
+    world before running tests so this cannot fire.
     """
     cfg = load_config()
     warehouse = cfg.paths.warehouse_file
     if not warehouse.exists():
         pytest.fail(
             f"no warehouse at {warehouse}; these tests need one. "
-            "Run `make world && make daily` first — they deliberately do not "
+            "Run `make world && make daily` first. They do not skip, "
             "skip, because a skipped report test looks like passing coverage."
         )
     import duckdb
@@ -195,7 +195,7 @@ def test_report_is_well_formed_html(rendered):
 
 
 def test_report_is_self_contained(rendered):
-    """No CDN, no script, no external stylesheet — the file has to work offline.
+    """No CDN, no script, no external stylesheet. The file has to work offline.
 
     The only permitted absolute URI is the SVG namespace declaration, which is an
     identifier rather than a fetch.
@@ -222,8 +222,8 @@ def test_report_states_the_caveats_in_the_page_itself(rendered):
 
     Matched against whitespace-normalised text: the template wraps its prose, so
     a multi-word phrase can straddle a line break and a naive substring check
-    fails on a caveat that is plainly there. That is a bug in the test, not the
-    report — and one that would read as "the caveat is missing".
+    fails on a caveat that is plainly there. That would be a bug in the test, not
+    the report, and it would read as "the caveat is missing".
     """
     html, _, _, _ = rendered
     normalised = " ".join(html.lower().split())

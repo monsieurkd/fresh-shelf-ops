@@ -54,6 +54,6 @@ where
     or r.min_confidence <= 0 or r.max_confidence > 1
     -- The floor must actually be a floor. If recorded waste exceeded the whole
     -- ledger residue, then the records are claiming MORE loss than the counts
-    -- can see, which means the scan file is over-counting — the opposite of
-    -- the defect this project models.
+    -- can see, which means the scan file is over-counting. That is the opposite
+    -- of the defect this project models.
     or v.total_recorded_qty > 0 and r.total_residue_qty < 0
